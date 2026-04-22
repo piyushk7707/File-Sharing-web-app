@@ -1,0 +1,12 @@
+node_modules/
+dist/
+.env
+.env.*
+.DS_Store
+.vscode/
+.idea/
+/.trash/
+*.tsbuildinfo
+package-lock.json
+npm-debug.log
+yarn.lock

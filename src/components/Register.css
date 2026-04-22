@@ -1,0 +1,10 @@
+/* Register uses the same auth styling as Login */
+@import './Login.css';
+
+.register-card h2 {
+  margin: 0 0 12px 0;
+  color: #0d47a1;
+  font-size: 32px;
+  font-weight: 700;
+}
+

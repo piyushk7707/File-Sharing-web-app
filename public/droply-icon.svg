@@ -1,0 +1,33 @@
+<svg width="200" height="200" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+  <!-- Cloud with document -->
+  <defs>
+    <linearGradient id="cloudGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#0d7fbf;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#0d47a1;stop-opacity:1" />
+    </linearGradient>
+    <linearGradient id="accentGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#10b981;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#059669;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+  
+  <!-- Cloud shape -->
+  <path d="M 140 90 C 150 85 160 90 160 100 C 160 110 152 118 140 118 L 50 118 C 35 118 25 110 25 100 C 25 92 30 85 38 83 C 40 70 50 60 65 60 C 75 60 83 65 90 72 C 95 65 105 60 115 60 C 135 60 150 70 155 85 Z" fill="url(#cloudGradient)" opacity="0.3"/>
+  
+  <!-- Main cloud -->
+  <path d="M 145 95 C 155 90 165 95 165 105 C 165 115 157 123 145 123 L 55 123 C 40 123 30 115 30 105 C 30 97 35 90 43 88 C 45 75 55 65 70 65 C 80 65 88 70 95 77 C 100 70 110 65 120 65 C 140 65 155 75 160 90 Z" fill="url(#cloudGradient)"/>
+  
+  <!-- Document in cloud -->
+  <g transform="translate(65, 75)">
+    <rect x="0" y="0" width="45" height="35" rx="2" fill="white" stroke="url(#accentGradient)" stroke-width="2"/>
+    <line x1="5" y1="8" x2="40" y2="8" stroke="url(#accentGradient)" stroke-width="1.5" stroke-linecap="round"/>
+    <line x1="5" y1="15" x2="40" y2="15" stroke="url(#accentGradient)" stroke-width="1.5" stroke-linecap="round" opacity="0.6"/>
+    <line x1="5" y1="22" x2="35" y2="22" stroke="url(#accentGradient)" stroke-width="1.5" stroke-linecap="round" opacity="0.4"/>
+  </g>
+  
+  <!-- Download arrow accent -->
+  <g transform="translate(120, 130)">
+    <circle cx="0" cy="0" r="12" fill="url(#accentGradient)"/>
+    <path d="M 0 -4 L 0 6 M -3 3 L 0 6 L 3 3" stroke="white" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+</svg>

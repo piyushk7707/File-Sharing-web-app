@@ -1,0 +1,3 @@
+﻿src/utils/firebaseUtils.ts(14,1): error TS6133: 'config' is declared but its value is never read.
+src/utils/firebaseUtils.ts(218,29): error TS2694: Namespace 'global.CryptoJS' has no exported member 'WordArray'.
+

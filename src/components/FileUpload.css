@@ -1,0 +1,110 @@
+.file-upload-container {
+  width: 100%;
+}
+
+.file-upload-container h2 {
+  margin-bottom: 1.6rem;
+  color: #0d7fbf;
+  font-size: 1.45rem;
+  font-weight: 800;
+  letter-spacing: -0.4px;
+}
+
+.upload-drop-zone {
+  border: 2px dashed #0d7fbf;
+  border-radius: 8px;
+  padding: 3.5rem 2rem;
+  text-align: center;
+  transition: all 200ms ease;
+  background: #f0f7ff;
+  cursor: pointer;
+  position: relative;
+  overflow: hidden;
+}
+
+.upload-drop-zone:hover,
+.upload-drop-zone.dragging {
+  background: #e8f2ff;
+  border-color: #0d47a1;
+  box-shadow: 0 4px 12px rgba(13, 71, 161, 0.15);
+}
+
+.upload-drop-zone::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: transparent;
+  transition: left 0.5s ease;
+}
+
+.upload-drop-zone:hover::before {
+  left: 100%;
+}
+
+.upload-drop-zone:hover,
+.upload-drop-zone.dragging {
+  background: #f0f7ff;
+  border-color: #0d47a1;
+  box-shadow: 0 8px 24px rgba(13, 71, 161, 0.25);
+  transform: translateY(-2px);
+}
+
+.upload-icon {
+  width: 56px;
+  height: 56px;
+  color: #0d7fbf;
+  margin-bottom: 1rem;
+  opacity: 0.9;
+  animation: bounce 2s ease-in-out infinite;
+}
+
+@keyframes bounce {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-8px); }
+}
+
+.drop-text {
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: #1a1a1a;
+  margin-bottom: 0.75rem;
+}
+
+.drop-hint {
+  font-size: 0.9rem;
+  color: #666;
+  font-weight: 500;
+}
+
+.hidden-input {
+  display: none;
+}
+
+.upload-button {
+  background: #0d47a1;
+  color: white;
+  padding: 0.9rem 2.5rem;
+  border-radius: 10px;
+  font-size: 1rem;
+  font-weight: 700;
+  margin-top: 1.5rem;
+  width: 100%;
+  max-width: 220px;
+  box-shadow: 0 6px 20px rgba(13, 71, 161, 0.35);
+  cursor: pointer;
+  border: none;
+  transition: all 0.3s ease;
+  letter-spacing: 0.4px;
+}
+
+.upload-button:hover {
+  box-shadow: 0 10px 30px rgba(13, 71, 161, 0.45);
+  transform: translateY(-2px);
+}
+
+.upload-button:active {
+  transform: translateY(0);
+}
