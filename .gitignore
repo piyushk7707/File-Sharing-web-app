@@ -1,12 +1,30 @@
+# Dependencies
 node_modules/
+
+# Build output
 dist/
+
+# Environment variables (SECRETS - never push!)
 .env
 .env.*
+!.env.example
+
+# Logs
+*.log
+server.log
+npm-debug.log
+
+# OS files
 .DS_Store
+Thumbs.db
+
+# IDE
 .vscode/
 .idea/
+
+# Misc
 /.trash/
 *.tsbuildinfo
 package-lock.json
-npm-debug.log
 yarn.lock
+vite.config.d.ts

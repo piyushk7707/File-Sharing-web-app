@@ -1,7 +1,12 @@
-import { initializeApp } from 'firebase/app'
+import { initializeApp, getApps, getApp } from 'firebase/app'
 import { getStorage } from 'firebase/storage'
 import { getFirestore } from 'firebase/firestore'
-import { getAuth, GoogleAuthProvider } from 'firebase/auth'
+import { 
+  getAuth, 
+  GoogleAuthProvider, 
+  setPersistence, 
+  browserLocalPersistence 
+} from 'firebase/auth'
 import { config } from './appConfig'
 
 // Firebase Configuration
@@ -22,8 +27,8 @@ console.log('[Firebase] Initializing with config:', {
   appId: firebaseConfig.appId,
 })
 
-// Initialize Firebase
-const app = initializeApp(firebaseConfig)
+// Initialize Firebase (prevent multiple initializations in development/HMR)
+const app = !getApps().length ? initializeApp(firebaseConfig) : getApp()
 console.log('[Firebase] App initialized successfully')
 
 // Get Firebase Services
@@ -35,6 +40,15 @@ console.log('[Firebase] Firestore service initialized')
 
 export const auth = getAuth(app)
 console.log('[Firebase] Auth service initialized')
+
+// Ensure authentication state persists across browser reloads
+setPersistence(auth, browserLocalPersistence)
+  .then(() => {
+    console.log('[Firebase] Auth persistence set to browserLocalPersistence');
+  })
+  .catch((error) => {
+    console.error('[Firebase] Auth persistence error:', error);
+  });
 
 export const googleProvider = new GoogleAuthProvider()
 

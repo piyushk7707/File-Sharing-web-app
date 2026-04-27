@@ -13,7 +13,7 @@ import cors from 'cors'
 
 const app = express()
 const PORT = process.env.SERVER_PORT || 3001
-const STORAGE_BUCKET_NAME = process.env.STORAGE_BUCKET_NAME || 'loginpage-dafe7.firebasestorage.app'
+const STORAGE_BUCKET_NAME = process.env.STORAGE_BUCKET_NAME || 'fileshare-b0e2c.firebasestorage.app'
 
 app.use(cors())
 app.use(express.json())
