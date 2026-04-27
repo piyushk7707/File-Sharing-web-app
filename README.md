@@ -1,66 +1,91 @@
-# File Sharing (Droply)
+# Droply - Secure File Sharing
 
-A secure, client-side encrypted file sharing web app built with React, TypeScript, Vite, and Firebase. Designed for fast private sharing with optional expiry and AES encryption.
+[![React](https://img.shields.io/badge/React-18-blue.svg)](https://reactjs.org/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.2-blue.svg)](https://www.typescriptlang.org/)
+[![Vite](https://img.shields.io/badge/Vite-5.0-purple.svg)](https://vitejs.dev/)
+[![Firebase](https://img.shields.io/badge/Firebase-10.0-orange.svg)](https://firebase.google.com/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](https://opensource.org/licenses/MIT)
 
-## Demo
-Open locally after following the setup instructions below. The dev server runs at http://localhost:5173 (or next available port).
+Droply is a secure, client-side encrypted file sharing application. It empowers users to securely share files with end-to-end encryption, password protection, and automated file expiry capabilities. Built with modern web technologies, it ensures high performance, security, and a seamless user experience.
 
-## Key Features
-- Client-side AES encryption/decryption
-- Password-protected file downloads
-- File expiry metadata (expires after configurable time)
-- Firebase Storage + Firestore metadata backend
-- Simple, modern React + TypeScript UI
+## ✨ Key Features
 
-## Tech Stack
-- React 18 + TypeScript
-- Vite
-- Firebase (Storage & Firestore)
-- CryptoJS (AES)
-- Node email proxy for local email testing
+- **End-to-End Encryption:** Client-side AES encryption ensures files are encrypted before leaving the browser.
+- **Secure Authentication:** Complete authentication flow with Email/Password and Google OAuth integration.
+- **Access Control:** Password-protected file downloads and shareable secure links.
+- **Time-Limited Sharing:** Configurable file expiry metadata (e.g., auto-expire after 24 hours).
+- **Backend Architecture:** Powered by Firebase Storage and Firestore for scalable, reliable data management.
+- **Email Notifications:** Integrated Node.js backend proxy for secure email sharing and download delivery.
 
-## Quick Start
-1. Install dependencies
+## 🛠️ Technology Stack
 
-```bash
-npm install
+- **Frontend:** React 18, TypeScript, Vite
+- **Backend Services:** Firebase Authentication, Firestore Database, Firebase Storage
+- **Server/Proxy:** Node.js, Express, Nodemailer
+- **Security:** CryptoJS (AES Encryption)
+
+## 🚀 Getting Started
+
+Follow these instructions to get a copy of the project up and running on your local machine for development and testing purposes.
+
+### Prerequisites
+
+- Node.js (v18 or higher)
+- npm or yarn
+- A Firebase Project (with Auth, Firestore, and Storage enabled)
+
+### Installation
+
+1. Clone the repository:
+   ```bash
+   git clone https://github.com/piyushk7707/File-Sharing.git
+   cd File-Sharing
+   ```
+
+2. Install dependencies:
+   ```bash
+   npm install
+   ```
+
+3. Environment Configuration:
+   Create a `.env` file in the root directory based on the `.env.example` file and provide your Firebase and SMTP credentials:
+   ```env
+   # Example required keys
+   VITE_FIREBASE_API_KEY=your-api-key
+   VITE_FIREBASE_AUTH_DOMAIN=your-auth-domain
+   # ... refer to .env.example for the full list
+   ```
+
+4. Start the development servers:
+   ```bash
+   # Starts both the React frontend and the Node.js email server
+   npm run dev:full
+   ```
+
+5. Access the application:
+   Open your browser and navigate to `http://localhost:5173`.
+
+## 📁 Architecture Overview
+
+```text
+├── src/                  # React Application Source Code
+│   ├── components/       # Reusable UI components
+│   ├── config/           # Application and Firebase configuration
+│   ├── context/          # React Context (Auth State)
+│   └── utils/            # Core business logic (Crypto, Auth, Firebase services)
+├── emailServer.js        # Node.js backend for email delivery & download proxy
+└── public/               # Static assets
 ```
 
-2. Create a `.env` file (see `src/config/appConfig.ts` for required keys).
+## 📄 License
 
-3. Start the local email helper and dev server:
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
-```bash
-npm run email-server
-npm run dev
-# or run both together
-npm run dev:full
-```
+## 📬 Contact
 
-4. Open the app: `http://localhost:5173` (or the port shown by Vite).
+**Piyush**  
+Email: pk29200405@gmail.com  
+GitHub: [@piyushk7707](https://github.com/piyushk7707)
 
-## Project Structure
-- `src/` — React app
-- `functions/` — serverless/email helper typescript functions
-- `public/` — static assets
-
-## What I changed for the public repo
-- Cleaned unused backend scaffolding and build artifacts
-- Added client-side AES encrypt/decrypt UI
-- Added file expiry metadata wiring
-
-## Screenshots
-(Add screenshots to `public/` and update links below)
-
-![App screenshot](public/screenshot.png)
-
-## Contributing
-Feel free to open an issue or a PR. For quick fixes, fork and submit a pull request.
-
-## License
-This repository is available under the MIT License. See `LICENSE`.
-
-## Contact
-Your Name — your.email@example.com
-
-Project maintained by you. Replace contact details before publishing.
+---
+*Built with ❤️ for secure, seamless file sharing.*
