@@ -38,8 +38,8 @@ Follow these instructions to get a copy of the project up and running on your lo
 
 1. Clone the repository:
    ```bash
-   git clone https://github.com/piyushk7707/File-Sharing.git
-   cd File-Sharing
+   git clone https://github.com/piyushk7707/File-Sharing-web-app.git
+   cd File-Sharing-web-app
    ```
 
 2. Install dependencies:
