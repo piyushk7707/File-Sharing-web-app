@@ -109,84 +109,84 @@ function App() {
         setFiles((prevFiles) => [...prevFiles, newFile])
         console.log('Added to UI: ' + fileId)
 
-        // Upload to Firebase in background
-        ;(async () => {
-          try {
-            const password = generateSecurePassword(32) // Generate unique password for each file
-            console.log('\n[' + fileId + '] Starting Firebase upload...')
-            console.log('Generated encryption password (length: ' + password.length + ')')
-
-            const storagePath = await uploadFileToStorage(file, password, fileId)
-            console.log('[' + fileId + '] Firebase upload complete: ' + storagePath)
-
-            // Save metadata to Firestore
-            console.log('[' + fileId + '] Saving metadata to Firestore...')
-            console.log('Metadata to save:', {
-              fileName: file.name,
-              fileSize: file.size,
-              fileType: file.type,
-              storagePath: storagePath,
-              shareLink: shareLink,
-              qrLink: qrValue,
-            })
-
+          // Upload to Firebase in background
+          ; (async () => {
             try {
-              await saveFileMetadata({
-                shareId: fileId,
+              const password = generateSecurePassword(32) // Generate unique password for each file
+              console.log('\n[' + fileId + '] Starting Firebase upload...')
+              console.log('Generated encryption password (length: ' + password.length + ')')
+
+              const storagePath = await uploadFileToStorage(file, password, fileId)
+              console.log('[' + fileId + '] Firebase upload complete: ' + storagePath)
+
+              // Save metadata to Firestore
+              console.log('[' + fileId + '] Saving metadata to Firestore...')
+              console.log('Metadata to save:', {
                 fileName: file.name,
                 fileSize: file.size,
                 fileType: file.type,
-                uploadDate: Timestamp.now(),
-                expiryTime: expiryTime ? Timestamp.fromDate(expiryTime) : null,
                 storagePath: storagePath,
                 shareLink: shareLink,
                 qrLink: qrValue,
-                sharedWith: [],
-                encryption: true,
-                encryptionPassword: password, // Store the password with metadata
               })
-              console.log('[' + fileId + '] Metadata saved to Firestore!')
-            } catch (metadataError: any) {
-              console.error('[' + fileId + '] CRITICAL: Metadata save failed!', metadataError)
-              console.error('Error code: ' + metadataError.code)
-              console.error('Error message: ' + metadataError.message)
-              
-              // Show error about metadata save failure
-              throw new Error('Failed to save file metadata to database: ' + metadataError.message)
+
+              try {
+                await saveFileMetadata({
+                  shareId: fileId,
+                  fileName: file.name,
+                  fileSize: file.size,
+                  fileType: file.type,
+                  uploadDate: Timestamp.now(),
+                  expiryTime: expiryTime ? Timestamp.fromDate(expiryTime) : Timestamp.now(),
+                  storagePath: storagePath,
+                  shareLink: shareLink,
+                  qrLink: qrValue,
+                  sharedWith: [],
+                  encryption: true,
+                  encryptionPassword: password, // Store the password with metadata
+                })
+                console.log('[' + fileId + '] Metadata saved to Firestore!')
+              } catch (metadataError: any) {
+                console.error('[' + fileId + '] CRITICAL: Metadata save failed!', metadataError)
+                console.error('Error code: ' + metadataError.code)
+                console.error('Error message: ' + metadataError.message)
+
+                // Show error about metadata save failure
+                throw new Error('Failed to save file metadata to database: ' + metadataError.message)
+              }
+
+              // Update upload status to success
+              setFiles((prevFiles) =>
+                prevFiles.map((f) =>
+                  f.id === fileId ? { ...f, uploadStatus: 'success' } : f,
+                ),
+              )
+
+              console.log('[' + fileId + '] ' + file.name + ' FULLY UPLOADED!')
+              console.log('Share link: ' + shareLink)
+              console.log('QR value: ' + qrValue)
+
+              // Show success popup
+              alert('\nSUCCESS!\n\n"' + file.name + '" uploaded to Firebase!\n\nShare link: ' + shareLink + '\n\nQR code + Email in the file card below.')
+            } catch (error: any) {
+              console.error('[' + fileId + '] UPLOAD FAILED:', error)
+              console.error('Error details:', {
+                code: error.code,
+                message: error.message,
+                stack: error.stack,
+              })
+
+              // Update upload status to failed
+              setFiles((prevFiles) =>
+                prevFiles.map((f) =>
+                  f.id === fileId ? { ...f, uploadStatus: 'failed' } : f,
+                ),
+              )
+
+              // Show user-friendly error message
+              alert('\nUpload Failed: ' + file.name + '\n\nError: ' + error.message + '\n\nCheck Console (F12) for details.\n\nCommon fixes:\n1. Check Firebase Rules (allow read, write)\n2. Check browser console for errors\n3. Check Firebase Storage quota')
             }
-
-            // Update upload status to success
-            setFiles((prevFiles) =>
-              prevFiles.map((f) =>
-                f.id === fileId ? { ...f, uploadStatus: 'success' } : f,
-              ),
-            )
-
-            console.log('[' + fileId + '] ' + file.name + ' FULLY UPLOADED!')
-            console.log('Share link: ' + shareLink)
-            console.log('QR value: ' + qrValue)
-            
-            // Show success popup
-            alert('\nSUCCESS!\n\n"' + file.name + '" uploaded to Firebase!\n\nShare link: ' + shareLink + '\n\nQR code + Email in the file card below.')
-          } catch (error: any) {
-            console.error('[' + fileId + '] UPLOAD FAILED:', error)
-            console.error('Error details:', {
-              code: error.code,
-              message: error.message,
-              stack: error.stack,
-            })
-            
-            // Update upload status to failed
-            setFiles((prevFiles) =>
-              prevFiles.map((f) =>
-                f.id === fileId ? { ...f, uploadStatus: 'failed' } : f,
-              ),
-            )
-            
-            // Show user-friendly error message
-            alert('\nUpload Failed: ' + file.name + '\n\nError: ' + error.message + '\n\nCheck Console (F12) for details.\n\nCommon fixes:\n1. Check Firebase Rules (allow read, write)\n2. Check browser console for errors\n3. Check Firebase Storage quota')
-          }
-        })()
+          })()
       }
     } catch (error) {
       console.error('Upload error:', error)
@@ -211,43 +211,43 @@ function App() {
     const shareEmailWithFile = async () => {
       try {
         console.log('Sending email to ' + email + ' for file: ' + file.name)
-        
-        // Actually send the email
-            // Compute human-friendly expiry text
-            let expiryText = 'No expiry'
-            try {
-              if (file.expiryTime) {
-                const expires = new Date(file.expiryTime)
-                const diffMs = expires.getTime() - Date.now()
-                if (diffMs <= 0) expiryText = 'Expired'
-                else {
-                  const mins = Math.round(diffMs / 60000)
-                  if (mins < 60) expiryText = `${mins} minutes`
-                  else if (mins < 60 * 24) expiryText = `${Math.round(mins / 60)} hours`
-                  else expiryText = `${Math.round(mins / (60*24))} days`
-                }
-              }
-            } catch (e) {
-              expiryText = '24 hours'
-            }
 
-            await sendFileViaEmail({
-              recipientEmail: email,
-              fileName: file.name,
-              shareLink: file.downloadLink,
-              senderName: 'Droply User',
-              expiryText,
-            })
+        // Actually send the email
+        // Compute human-friendly expiry text
+        let expiryText = 'No expiry'
+        try {
+          if (file.expiryTime) {
+            const expires = new Date(file.expiryTime)
+            const diffMs = expires.getTime() - Date.now()
+            if (diffMs <= 0) expiryText = 'Expired'
+            else {
+              const mins = Math.round(diffMs / 60000)
+              if (mins < 60) expiryText = `${mins} minutes`
+              else if (mins < 60 * 24) expiryText = `${Math.round(mins / 60)} hours`
+              else expiryText = `${Math.round(mins / (60 * 24))} days`
+            }
+          }
+        } catch (e) {
+          expiryText = '24 hours'
+        }
+
+        await sendFileViaEmail({
+          recipientEmail: email,
+          fileName: file.name,
+          shareLink: file.downloadLink,
+          senderName: 'Droply User',
+          expiryText,
+        })
 
         // Update progress and shared list
         setFiles((prevFiles) =>
           prevFiles.map((f) =>
             f.id === fileId
               ? {
-                  ...f,
-                  sharedWith: Array.from(new Set([...f.sharedWith, email])),
-                  sharingProgress: 0,
-                }
+                ...f,
+                sharedWith: Array.from(new Set([...f.sharedWith, email])),
+                sharingProgress: 0,
+              }
               : f,
           ),
         )
@@ -273,9 +273,9 @@ function App() {
       prevFiles.map((file) =>
         file.id === fileId
           ? {
-              ...file,
-              sharedWith: file.sharedWith.filter((e) => e !== email),
-            }
+            ...file,
+            sharedWith: file.sharedWith.filter((e) => e !== email),
+          }
           : file,
       ),
     )
@@ -304,7 +304,7 @@ function App() {
             onSkip={() => setHasSkipped(true)}
           />
         ) : authMode === 'register' ? (
-          <Register 
+          <Register
             onSwitchToLogin={() => setAuthMode('login')}
             onSkip={() => setHasSkipped(true)}
           />
@@ -350,7 +350,7 @@ function App() {
                 <span className="tab-label">Encrypt</span> Files
               </button>
             )}
-            
+
             <div className="profile-tab">
               <ProfileMenu onSignInClick={() => {
                 setAuthMode('login')
@@ -393,7 +393,7 @@ function App() {
                       <h2>Your Files ({files.length})</h2>
                     </div>
                     <FileList
-                      files={files}
+                      files={files as any}
                       onDelete={handleDeleteFile}
                       onShare={handleShareFile}
                       onUnshare={handleUnshareFile}
