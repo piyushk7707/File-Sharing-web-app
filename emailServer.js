@@ -1,6 +1,3 @@
-// Simple Node.js Email Server
-// Run: node emailServer.js
-// Listens on http://localhost:3001/api/send-email
 
 import dotenv from 'dotenv'
 dotenv.config() // Load .env.local file
@@ -8,26 +5,21 @@ dotenv.config() // Load .env.local file
 import express from 'express'
 import nodemailer from 'nodemailer'
 import cors from 'cors'
-// Note: Using built-in fetch (Node.js 18+)
-// If needed, install: npm install node-fetch
+import path from 'path'
+import { fileURLToPath } from 'url'
 
 const app = express()
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = path.dirname(__filename)
 const PORT = process.env.SERVER_PORT || 3001
 const STORAGE_BUCKET_NAME = process.env.STORAGE_BUCKET_NAME || 'fileshare-b0e2c.firebasestorage.app'
 
 app.use(cors())
 app.use(express.json())
 
-// ============================================
-// GMAIL SETUP (Required for real emails)
-// ============================================
-// 1. Go to: myaccount.google.com/apppasswords
-// 2. Select: Mail + Windows Computer
-// 3. Copy: 16-character app password
-// 4. Use environment variable GMAIL_APP_PASSWORD
+
 const GMAIL_USER = process.env.GMAIL_USER || 'your-email@gmail.com'
 const GMAIL_APP_PASSWORD = process.env.GMAIL_APP_PASSWORD || 'your-16-char-app-password'
-// ============================================
 
 // Configure Gmail transporter
 const transporter = nodemailer.createTransport({
@@ -140,20 +132,20 @@ app.post('/api/download', async (req, res) => {
   try {
     const { filePath, fileId, bucketName } = req.body
     const resolvedBucketName = bucketName || STORAGE_BUCKET_NAME
-    
+
     console.log('\nDownload request - filePath: ' + filePath + ', fileId: ' + fileId)
     console.log('Using bucket: ' + resolvedBucketName)
 
     let storageURL = ''
-    
+
     // Try filePath first (full path like "files/xyz/file.enc")
     if (filePath) {
       storageURL = `https://firebasestorage.googleapis.com/v0/b/${resolvedBucketName}/o/${encodeURIComponent(filePath)}?alt=media`
-    } 
+    }
     // Or construct from fileId
     else if (fileId) {
       storageURL = `https://firebasestorage.googleapis.com/v0/b/${resolvedBucketName}/o/${encodeURIComponent(`files/${fileId}/file.enc`)}?alt=media`
-    } 
+    }
     else {
       return res.status(400).json({ success: false, error: 'filePath or fileId required' })
     }
@@ -163,7 +155,7 @@ app.post('/api/download', async (req, res) => {
 
     try {
       const response = await fetch(storageURL, { timeout: 30000 })
-      
+
       if (!response.ok) {
         console.error('Firebase error: ' + response.status + ' ' + response.statusText)
         const text = await response.text()
@@ -204,6 +196,13 @@ app.post('/api/download', async (req, res) => {
 // Health check
 app.get('/health', (req, res) => {
   res.json({ status: 'Email server is running', timestamp: new Date() })
+})
+
+// Serve React frontend
+app.use(express.static(path.join(__dirname, 'dist')))
+
+app.get('*', (req, res) => {
+  res.sendFile(path.join(__dirname, 'dist', 'index.html'))
 })
 
 app.listen(PORT, () => {
