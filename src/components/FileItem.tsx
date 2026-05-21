@@ -83,6 +83,7 @@ function FileItem({ file, onDelete, onShare, onUnshare }: FileItemProps) {
 
   const isExpired = new Date() > new Date(file.expiryTime)
   const shareLink = file.downloadLink || buildShareLink(file.id)
+  const password = shareLink.includes('#') ? shareLink.split('#')[1] : undefined
   const receivePageLink = `${window.location.origin}/?tab=receive&shareLink=${encodeURIComponent(shareLink)}`
 
   return (
@@ -140,7 +141,7 @@ function FileItem({ file, onDelete, onShare, onUnshare }: FileItemProps) {
                   style={{ textDecoration: 'none', cursor: 'pointer' }}
                 >
                   <img
-                    src={generateQRCodeURL(file.id)}
+                    src={generateQRCodeURL(file.id, password)}
                     alt="QR Code"
                     className="qr-code-large"
                     style={{ cursor: 'pointer', transition: 'transform 0.2s', borderRadius: '8px' }}

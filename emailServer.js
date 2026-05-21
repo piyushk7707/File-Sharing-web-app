@@ -11,7 +11,7 @@ import { fileURLToPath } from 'url'
 const app = express()
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
-const PORT = process.env.SERVER_PORT || 3001
+const PORT = process.env.PORT || process.env.SERVER_PORT || 3001
 const STORAGE_BUCKET_NAME = process.env.STORAGE_BUCKET_NAME || 'fileshare-b0e2c.firebasestorage.app'
 
 app.use(cors())

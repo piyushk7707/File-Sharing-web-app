@@ -23,6 +23,7 @@ export const uploadFileToStorage = async (
   file: File,
   password: string,
   fileId: string,
+  shouldEncrypt: boolean = true,
 ): Promise<string> => {
   try {
     console.log('\n' + '='.repeat(50))
@@ -50,9 +51,14 @@ export const uploadFileToStorage = async (
     const base64 = btoa(binary)
     console.log('Base64 created: ' + base64.length + ' chars')
 
-    console.log('\nStep 3: Encrypting with AES...')
-    const encryptedData = CryptoJS.AES.encrypt(base64, password).toString()
-    console.log('Encryption successful: ' + encryptedData.length + ' chars')
+    let finalData = base64
+    if (shouldEncrypt && password) {
+      console.log('\nStep 3: Encrypting with AES...')
+      finalData = CryptoJS.AES.encrypt(base64, password).toString()
+      console.log('Encryption successful: ' + finalData.length + ' chars')
+    } else {
+      console.log('\nStep 3: Skipping encryption (uploading plaintext)...')
+    }
 
     console.log('\nStep 4: Creating metadata...')
     const extension = file.name.split('.').pop() || 'bin'
@@ -66,7 +72,7 @@ export const uploadFileToStorage = async (
     console.log('Metadata: ' + metadata)
 
     console.log('\nStep 5: Creating encrypted blob...')
-    const encryptedContent = `${metadata}|${encryptedData}`
+    const encryptedContent = `${metadata}|${finalData}`
     const encryptedBlob = new Blob([encryptedContent], { type: 'text/plain;charset=utf-8' })
     console.log('Blob created: ' + encryptedBlob.size + ' bytes')
 
@@ -229,36 +235,40 @@ export const downloadFileFromStorage = async (
     console.log('Decrypting AES encrypted data...')
     onProgress?.(55)
 
-    // STEP 5: Decrypt using CryptoJS
-    let decrypted
-    try {
-      decrypted = CryptoJS.AES.decrypt(encryptedData, password)
-
-      if (!decrypted) {
-        throw new Error('Decryption returned empty')
-      }
-
-      console.log('AES decryption successful')
-    } catch (e) {
-      console.error('AES decryption failed:', e)
-      throw new Error('Decryption failed - wrong password or corrupted data')
-    }
-
-    onProgress?.(70)
-
-    // STEP 6: Convert decrypted data to base64 string
-    console.log('Converting decrypted data to UTF-8 string...')
+    // STEP 5: Decrypt using CryptoJS if password is provided
     let decryptedBase64: string
-    try {
-      decryptedBase64 = decrypted.toString(CryptoJS.enc.Utf8)
-    } catch (e) {
-      console.error('Decrypted string conversion failed:', e)
-      throw new Error('Failed to convert decrypted data to string')
-    }
+    if (password) {
+      console.log('Decrypting AES encrypted data...')
+      onProgress?.(55)
+      let decrypted
+      try {
+        decrypted = CryptoJS.AES.decrypt(encryptedData, password)
+        if (!decrypted) {
+          throw new Error('Decryption returned empty')
+        }
+        console.log('AES decryption successful')
+      } catch (e) {
+        console.error('AES decryption failed:', e)
+        throw new Error('Decryption failed - wrong password or corrupted data')
+      }
+      onProgress?.(70)
 
-    if (!decryptedBase64 || decryptedBase64.length === 0) {
-      console.error('Decrypted base64 is empty - password might be wrong')
-      throw new Error('Decryption produced empty data - wrong password?')
+      // STEP 6: Convert decrypted data to base64 string
+      console.log('Converting decrypted data to UTF-8 string...')
+      try {
+        decryptedBase64 = decrypted.toString(CryptoJS.enc.Utf8)
+      } catch (e) {
+        console.error('Decrypted string conversion failed:', e)
+        throw new Error('Failed to convert decrypted data to string')
+      }
+      if (!decryptedBase64 || decryptedBase64.length === 0) {
+        console.error('Decrypted base64 is empty - password might be wrong')
+        throw new Error('Decryption produced empty data - wrong password?')
+      }
+    } else {
+      console.log('Skipping AES decryption (using plaintext)...')
+      decryptedBase64 = encryptedData
+      onProgress?.(70)
     }
 
     console.log('Decrypted base64 length: ' + decryptedBase64.length)

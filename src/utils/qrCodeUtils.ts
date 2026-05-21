@@ -23,8 +23,11 @@ export const extractFileIdFromShareInput = (value: string): string => {
     return ''
   }
 
+  // Strip hash (encryption password) before parsing the fileId
+  const valueWithoutHash = trimmedValue.split('#')[0]
+
   try {
-    const url = new URL(trimmedValue)
+    const url = new URL(valueWithoutHash)
     const pathParts = url.pathname.split('/').filter(Boolean)
 
     if (pathParts.length > 0) {
@@ -34,36 +37,32 @@ export const extractFileIdFromShareInput = (value: string): string => {
     // Not a full URL, continue with plain-text parsing below.
   }
 
-  if (trimmedValue.includes('/download/')) {
-    return trimmedValue.split('/download/').pop() || ''
+  if (valueWithoutHash.includes('/download/')) {
+    return valueWithoutHash.split('/download/').pop() || ''
   }
 
-  if (trimmedValue.includes('?fileId=')) {
-    return trimmedValue.split('?fileId=').pop() || ''
+  if (valueWithoutHash.includes('?fileId=')) {
+    return valueWithoutHash.split('?fileId=').pop() || ''
   }
 
-  return trimmedValue
+  return valueWithoutHash
 }
 
 /**
  * Generate QR code URL that points to receiver page with auto-filled link
  * @param fileId - Unique file identifier
+ * @param password - Optional encryption password
  * @returns QR code image URL
  */
-export const generateQRCodeURL = (fileId: string): string => {
-  const shareLink = buildShareLink(fileId)
+export const generateQRCodeURL = (fileId: string, password?: string): string => {
+  const baseLink = buildShareLink(fileId)
+  const shareLink = password ? `${baseLink}#${password}` : baseLink
   // URL to open: navigate to receive tab with shareLink parameter
   const qrURL = `${window.location.origin}/?tab=receive&shareLink=${encodeURIComponent(shareLink)}`
   const encoded = encodeURIComponent(qrURL)
-  // Using QR server API for generation
   return `https://api.qrserver.com/v1/create-qr-code/?size=280x280&data=${encoded}`
 }
 
-/**
- * Parse QR code data and extract file ID
- * @param qrData - Data from QR code
- * @returns File ID or null
- */
 export const parseQRData = (qrData: string): string | null => {
   try {
     const url = new URL(qrData)
@@ -98,7 +97,10 @@ export const getShareLinkFromURL = (): string | null => {
 
   const pathParts = window.location.pathname.split('/').filter(Boolean)
   if (pathParts[0] === 'download' && pathParts[1]) {
-    const directShareLink = buildShareLink(pathParts[1])
+    let directShareLink = buildShareLink(pathParts[1])
+    if (window.location.hash) {
+      directShareLink += window.location.hash
+    }
     console.log('Share link from path: ' + directShareLink)
     return directShareLink
   }

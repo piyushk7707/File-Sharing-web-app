@@ -107,6 +107,28 @@ function ReceiveFile({ initialShareLink }: ReceiveFileProps) {
         return
       }
 
+      // Determine password (zero-knowledge)
+      const isEncrypted = metadata.encryption !== false
+      let password = ''
+
+      if (isEncrypted) {
+        // Try extracting from the input string hash
+        if (fileIdToUse.includes('#')) {
+          password = fileIdToUse.split('#')[1]
+        }
+        // Try extracting from window location hash if not in input string
+        if (!password && window.location.hash) {
+          password = window.location.hash.substring(1)
+        }
+        // Fallback: Prompt user if password is not found in URL hash
+        if (!password) {
+          const userEntered = prompt('This file is encrypted. Please enter the decryption password:')
+          if (userEntered) {
+            password = userEntered.trim()
+          }
+        }
+      }
+
       // Create file object for display
       const receivedFile: ReceivedFile = {
         id: metadata.id || fileId,
@@ -114,14 +136,18 @@ function ReceiveFile({ initialShareLink }: ReceiveFileProps) {
         size: metadata.fileSize,
         uploadDate: metadata.uploadDate.toDate(),
         storagePath: metadata.storagePath,
-        encryptionPassword: metadata.encryptionPassword || 'droply123', // Fallback to default if not present
+        encryptionPassword: password,
       }
 
       setReceivedFiles([receivedFile])
       setShareLink('')
       console.log('File retrieved: ' + metadata.fileName)
       console.log('Storage path: ' + metadata.storagePath)
-      console.log('Encryption password from metadata')
+      if (isEncrypted) {
+        console.log('Encryption password retrieved successfully (client-side only)')
+      } else {
+        console.log('File is not encrypted')
+      }
     } catch (err) {
       console.error('Retrieve Error:', err)
       setError('Error retrieving file: ' + (err instanceof Error ? err.message : 'Unknown error') + '\n\nCheck Console (F12)')

@@ -16,7 +16,7 @@ import {
 
 } from './utils/firebaseUtils'
 import { buildShareLink, getShareLinkFromURL, getTabFromURL } from './utils/qrCodeUtils'
-import { generateSecurePassword } from './utils/passwordUtils'
+import { generateUrlSafePassword } from './utils/passwordUtils'
 import { sendFileViaEmail } from './utils/emailService'
 import { config } from './config/appConfig'
 import { Timestamp } from 'firebase/firestore'
@@ -43,12 +43,18 @@ function App() {
   const [authMode, setAuthMode] = useState<'login' | 'register' | 'forgot'>('login')
   const [hasSkipped, setHasSkipped] = useState(false)
 
-  // Auto-switch to Receive tab if QR code was scanned
+  // Auto-switch to Receive tab if QR code or direct share link was accessed
   useEffect(() => {
     const tab = getTabFromURL()
+    const shareLink = getShareLinkFromURL()
     if (tab) {
-      console.log('QR Code Detected: Auto-switching to ' + tab + ' tab')
+      console.log('Tab parameter detected: Auto-switching to ' + tab + ' tab')
       setActiveTab(tab)
+    } else if (shareLink) {
+      console.log('Direct share link detected: Auto-switching to receive tab')
+      setActiveTab('receive')
+      // Normalize URL to avoid page refresh routing issues
+      window.history.replaceState({}, '', `/?tab=receive&shareLink=${encodeURIComponent(shareLink)}`)
     }
   }, [])
 
@@ -60,7 +66,9 @@ function App() {
         console.log('\nProcessing: ' + file.name + ' (' + file.size + ' bytes)')
 
         const fileId = Math.random().toString(36).substr(2, 9)
-        const shareLink = buildShareLink(fileId)
+        const password = encryptionEnabled ? generateUrlSafePassword(24) : ''
+        const baseShareLink = buildShareLink(fileId)
+        const shareLink = encryptionEnabled && password ? `${baseShareLink}#${password}` : baseShareLink
         const qrValue = shareLink
 
         // Compute expiry time based on selection (defaults to config.file.expiryHours)
@@ -112,11 +120,14 @@ function App() {
           // Upload to Firebase in background
           ; (async () => {
             try {
-              const password = generateSecurePassword(32) // Generate unique password for each file
               console.log('\n[' + fileId + '] Starting Firebase upload...')
-              console.log('Generated encryption password (length: ' + password.length + ')')
+              if (encryptionEnabled) {
+                console.log('Using encryption password (length: ' + password.length + ')')
+              } else {
+                console.log('Uploading without encryption...')
+              }
 
-              const storagePath = await uploadFileToStorage(file, password, fileId)
+              const storagePath = await uploadFileToStorage(file, password, fileId, encryptionEnabled)
               console.log('[' + fileId + '] Firebase upload complete: ' + storagePath)
 
               // Save metadata to Firestore
@@ -142,8 +153,7 @@ function App() {
                   shareLink: shareLink,
                   qrLink: qrValue,
                   sharedWith: [],
-                  encryption: true,
-                  encryptionPassword: password, // Store the password with metadata
+                  encryption: encryptionEnabled,
                 })
                 console.log('[' + fileId + '] Metadata saved to Firestore!')
               } catch (metadataError: any) {

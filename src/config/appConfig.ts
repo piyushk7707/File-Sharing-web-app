@@ -5,12 +5,15 @@
 
 const env = (import.meta as any).env as Record<string, string>
 
+const isLocal = typeof window !== 'undefined' && 
+  (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+
 export const config = {
   // Server & API Configuration
   server: {
     port: parseInt(env.VITE_SERVER_PORT || '3001'),
-    apiBaseUrl: env.VITE_API_BASE_URL || 'http://localhost:3001',
-    frontendUrl: env.VITE_FRONTEND_BASE_URL || 'http://localhost:5174',
+    apiBaseUrl: isLocal ? 'http://localhost:3001' : (env.VITE_API_BASE_URL || 'http://localhost:3001'),
+    frontendUrl: isLocal ? window.location.origin : (env.VITE_FRONTEND_BASE_URL || 'http://localhost:5174'),
   },
 
   // Firebase Configuration
@@ -35,7 +38,7 @@ export const config = {
   },
 
   // URLs for sharing
-  shareLinkBase: env.VITE_SHARE_LINK_BASE || 'https://droply.share/download',
+  shareLinkBase: isLocal ? `${window.location.origin}/download` : (env.VITE_SHARE_LINK_BASE || 'https://droply.share/download'),
 
   // Environment Detection
   isDevelopment: !!(env.DEV),
