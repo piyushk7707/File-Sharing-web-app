@@ -63,7 +63,16 @@ export const sendFileEmailViaBackend = async (options: EmailOptions): Promise<bo
     })
 
     if (!response.ok) {
-      throw new Error('Backend email service unavailable')
+      let errorMessage = 'Backend email service unavailable';
+      try {
+        const errorData = await response.json();
+        if (errorData && errorData.error) {
+          errorMessage = errorData.error;
+        }
+      } catch (e) {
+        // Fallback if response is not JSON
+      }
+      throw new Error(errorMessage);
     }
 
     const result = await response.json()
@@ -71,7 +80,8 @@ export const sendFileEmailViaBackend = async (options: EmailOptions): Promise<bo
     return true
   } catch (error) {
     console.error('Backend email failed, trying Cloud Function...', error)
-    return await sendFileEmailViaCF(options)
+    // Throw the error so sendFileViaEmail can handle it
+    throw error;
   }
 }
 
@@ -91,7 +101,9 @@ export const sendFileViaEmail = async (options: EmailOptions): Promise<boolean> 
       return await sendFileEmailViaCF(options)
     } catch (cfError) {
       console.error('All email methods failed:', cfError)
-      throw cfError
+      // Throw the original backend error instead of the CORS/CF error
+      const finalError = backendError instanceof Error ? backendError : new Error(String(backendError));
+      throw finalError
     }
   }
 }
