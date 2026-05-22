@@ -59,7 +59,7 @@ app.post('/api/send-email', async (req, res) => {
 
     // Email content
     const mailOptions = {
-      from: 'noreply@droply.com',
+      from: `"Droply File Sharing" <${GMAIL_USER}>`,
       to: recipientEmail,
       subject: `${senderName || 'Someone'} shared "${fileName}" with you via Droply`,
       html: `
