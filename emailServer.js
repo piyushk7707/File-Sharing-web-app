@@ -39,6 +39,13 @@ const parseFirebaseServiceAccount = () => {
   return null
 }
 
+const sendBufferDownload = (res, buffer) => {
+  res.setHeader('Content-Type', 'application/octet-stream')
+  res.setHeader('Content-Length', buffer.length)
+  res.setHeader('Cache-Control', 'no-cache')
+  res.send(buffer)
+}
+
 // Initialize Firebase Admin for backend Firestore access
 console.log('\n' + '='.repeat(60))
 console.log('FIREBASE ADMIN INITIALIZATION')
@@ -210,6 +217,7 @@ app.post('/api/download', async (req, res) => {
   try {
     const { filePath, fileId, bucketName } = req.body
     const resolvedBucketName = bucketName || STORAGE_BUCKET_NAME
+    const storagePath = filePath || (fileId ? `files/${fileId}/file.enc` : '')
 
     console.log('\nDownload request - filePath: ' + filePath + ', fileId: ' + fileId)
     console.log('Using bucket: ' + resolvedBucketName)
@@ -217,15 +225,25 @@ app.post('/api/download', async (req, res) => {
     let storageURL = ''
 
     // Try filePath first (full path like "files/xyz/file.enc")
-    if (filePath) {
-      storageURL = `https://firebasestorage.googleapis.com/v0/b/${resolvedBucketName}/o/${encodeURIComponent(filePath)}?alt=media`
-    }
-    // Or construct from fileId
-    else if (fileId) {
-      storageURL = `https://firebasestorage.googleapis.com/v0/b/${resolvedBucketName}/o/${encodeURIComponent(`files/${fileId}/file.enc`)}?alt=media`
+    if (storagePath) {
+      storageURL = `https://firebasestorage.googleapis.com/v0/b/${resolvedBucketName}/o/${encodeURIComponent(storagePath)}?alt=media`
     }
     else {
       return res.status(400).json({ success: false, error: 'filePath or fileId required' })
+    }
+
+    console.log('Storage path: ' + storagePath)
+
+    try {
+      const bucket = admin.storage().bucket(resolvedBucketName)
+      const [buffer] = await bucket.file(storagePath).download()
+      console.log('Downloaded with Firebase Admin: ' + buffer.length + ' bytes')
+      sendBufferDownload(res, buffer)
+      console.log('Sent to client (' + buffer.length + ' bytes)')
+      return
+    } catch (adminStorageError) {
+      console.warn('Firebase Admin Storage download failed: ' + adminStorageError.message)
+      console.warn('Falling back to Firebase Storage REST URL...')
     }
 
     console.log('Fetching: ' + storageURL)
@@ -249,11 +267,7 @@ app.post('/api/download', async (req, res) => {
       const buffer = Buffer.from(arrayBuffer)
       console.log('Downloaded: ' + buffer.length + ' bytes from Firebase')
 
-      // Send as binary - NO CORS issues because it's same-origin (localhost:3001)
-      res.setHeader('Content-Type', 'application/octet-stream')
-      res.setHeader('Content-Length', buffer.length)
-      res.setHeader('Cache-Control', 'no-cache')
-      res.send(buffer)
+      sendBufferDownload(res, buffer)
       console.log('Sent to client (' + buffer.length + ' bytes)')
     } catch (fetchError) {
       console.error('Fetch failed: ' + fetchError.message)

@@ -5,6 +5,7 @@ import {
   downloadFileFromStorage,
   isFileExpired,
   getAllUserFiles,
+  timestampToDate,
 } from '../utils/firebaseUtils'
 import { buildShareLink, extractFileIdFromShareInput } from '../utils/qrCodeUtils'
 import './ReceiveFile.css'
@@ -134,7 +135,7 @@ function ReceiveFile({ initialShareLink }: ReceiveFileProps) {
         id: metadata.id || fileId,
         name: metadata.fileName,
         size: metadata.fileSize,
-        uploadDate: metadata.uploadDate.toDate(),
+        uploadDate: timestampToDate(metadata.uploadDate),
         storagePath: metadata.storagePath,
         encryptionPassword: password,
       }

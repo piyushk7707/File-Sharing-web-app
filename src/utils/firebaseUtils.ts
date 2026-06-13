@@ -325,6 +325,43 @@ export interface SharedFileMetadata {
   encryptionPassword?: string  // Store password for decryption
 }
 
+const getFileMetadataFromBackend = async (shareId: string): Promise<SharedFileMetadata | null> => {
+  const response = await fetch(`${config.server.apiBaseUrl}/api/file/${encodeURIComponent(shareId)}`)
+
+  if (response.status === 404) {
+    return null
+  }
+
+  if (!response.ok) {
+    throw new Error(`Backend proxy returned ${response.status}`)
+  }
+
+  const result = await response.json()
+
+  if (result.success && result.data) {
+    console.log('✓ Successfully retrieved file from backend proxy: ' + result.data.fileName)
+    return result.data as SharedFileMetadata
+  }
+
+  throw new Error(result.error || 'Backend proxy returned no data')
+}
+
+export const timestampToDate = (value: any): Date => {
+  if (!value) return new Date(0)
+  if (value instanceof Date) return value
+  if (typeof value.toDate === 'function') return value.toDate()
+
+  if (typeof value.seconds === 'number') {
+    return new Date(value.seconds * 1000 + Math.floor((value.nanoseconds || 0) / 1000000))
+  }
+
+  if (typeof value._seconds === 'number') {
+    return new Date(value._seconds * 1000 + Math.floor((value._nanoseconds || 0) / 1000000))
+  }
+
+  return new Date(value)
+}
+
 // Save file metadata to Firestore
 export const saveFileMetadata = async (
   metadata: Omit<SharedFileMetadata, 'id'>,
@@ -378,6 +415,17 @@ export const saveFileMetadata = async (
 export const getFileMetadataByLink = async (
   shareLink: string,
 ): Promise<SharedFileMetadata | null> => {
+  const parts = shareLink.split('/')
+  const shareId = parts[parts.length - 1]?.split('#')[0]?.split('?')[0]
+
+  if (shareId) {
+    try {
+      return await getFileMetadataFromBackend(shareId)
+    } catch (backendError: any) {
+      console.warn('Backend proxy failed - falling back to browser Firestore:', backendError.message)
+    }
+  }
+
   const maxRetries = 3
   let retryCount = 0
 
@@ -454,6 +502,12 @@ export const getFileMetadataByLink = async (
 export const getFileMetadataByShareId = async (
   shareId: string,
 ): Promise<SharedFileMetadata | null> => {
+  try {
+    return await getFileMetadataFromBackend(shareId)
+  } catch (backendError: any) {
+    console.warn('Backend proxy failed - falling back to browser Firestore:', backendError.message)
+  }
+
   const maxRetries = 3
   let retryCount = 0
 
@@ -619,6 +673,7 @@ export const deleteFile = async (fileId: string): Promise<void> => {
 export const isFileExpired = (expiryTime: Timestamp): boolean => {
   if (!expiryTime) return false
   const now = new Date()
-  const expiry = expiryTime.toDate()
+  const expiry = timestampToDate(expiryTime)
+  if (Number.isNaN(expiry.getTime())) return false
   return now > expiry
 }
