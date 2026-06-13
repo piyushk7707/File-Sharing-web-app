@@ -8,6 +8,9 @@ import cors from 'cors'
 import path from 'path'
 import { fileURLToPath } from 'url'
 
+// Firebase Admin SDK - For backend Firestore access
+import admin from 'firebase-admin'
+
 const app = express()
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -17,6 +20,28 @@ const STORAGE_BUCKET_NAME = process.env.STORAGE_BUCKET_NAME || 'fileshare-b0e2c.
 app.use(cors())
 app.use(express.json())
 
+// Initialize Firebase Admin for backend Firestore access
+try {
+  // Check if Firebase Admin is already initialized
+  admin.app()
+  console.log('✓ Firebase Admin already initialized')
+} catch (error) {
+  try {
+    // Use service account from environment
+    const serviceAccount = process.env.FIREBASE_SERVICE_ACCOUNT
+    if (serviceAccount) {
+      admin.initializeApp({
+        credential: admin.credential.cert(JSON.parse(serviceAccount)),
+        databaseURL: `https://${process.env.FIREBASE_PROJECT_ID}.firebaseio.com`,
+      })
+      console.log('✓ Firebase Admin initialized with service account')
+    } else {
+      console.warn('⚠️  No FIREBASE_SERVICE_ACCOUNT environment variable - Firestore proxy will not work')
+    }
+  } catch (err) {
+    console.warn('⚠️  Could not initialize Firebase Admin:', err.message)
+  }
+}
 
 const GMAIL_USER = process.env.GMAIL_USER || 'your-email@gmail.com'
 const GMAIL_APP_PASSWORD = process.env.GMAIL_APP_PASSWORD || 'your-16-char-app-password'
@@ -201,6 +226,80 @@ app.post('/api/download', async (req, res) => {
 // Health check
 app.get('/health', (req, res) => {
   res.json({ status: 'Email server is running', timestamp: new Date() })
+})
+
+// =======================
+// FIRESTORE PROXY ENDPOINTS
+// =======================
+// Proxy endpoint to fetch file metadata by shareId (for handling Firestore connection issues on frontend)
+app.get('/api/file/:shareId', async (req, res) => {
+  try {
+    const { shareId } = req.params
+    
+    if (!shareId) {
+      return res.status(400).json({ error: 'shareId is required' })
+    }
+
+    console.log(`[Firestore Proxy] Fetching file by shareId: ${shareId}`)
+
+    // Try to get from Firestore using Admin SDK
+    try {
+      const db = admin.firestore()
+      
+      // First try direct document access
+      const docRef = db.collection('files').doc(shareId)
+      const docSnapshot = await docRef.get()
+      
+      if (docSnapshot.exists()) {
+        console.log(`✓ Found file by document ID: ${docSnapshot.data().fileName}`)
+        return res.json({
+          success: true,
+          data: {
+            id: docSnapshot.id,
+            ...docSnapshot.data(),
+          },
+        })
+      }
+
+      // Fallback: Query by shareId field
+      console.log(`Querying Firestore for shareId field: ${shareId}`)
+      const querySnapshot = await db.collection('files')
+        .where('shareId', '==', shareId)
+        .limit(1)
+        .get()
+
+      if (!querySnapshot.empty) {
+        const doc = querySnapshot.docs[0]
+        console.log(`✓ Found file by shareId query: ${doc.data().fileName}`)
+        return res.json({
+          success: true,
+          data: {
+            id: doc.id,
+            ...doc.data(),
+          },
+        })
+      }
+
+      console.warn(`✗ No file found with shareId: ${shareId}`)
+      return res.status(404).json({
+        success: false,
+        error: 'File not found',
+        shareId: shareId,
+      })
+    } catch (firebaseError) {
+      console.error('Firebase Admin error:', firebaseError.message)
+      return res.status(500).json({
+        success: false,
+        error: 'Firestore backend error: ' + firebaseError.message,
+      })
+    }
+  } catch (error) {
+    console.error('Proxy endpoint error:', error.message)
+    res.status(500).json({
+      success: false,
+      error: error.message || 'Unknown server error',
+    })
+  }
 })
 
 // Serve React frontend

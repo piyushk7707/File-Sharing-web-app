@@ -418,7 +418,37 @@ export const getFileMetadataByLink = async (
     }
   }
 
-  return attemptQuery()
+  try {
+    return await attemptQuery()
+  } catch (error: any) {
+    // All Firestore attempts failed - extract shareId from link and use backend proxy
+    console.warn('⚠️  Firestore failed - trying backend proxy with extracted ID...')
+    try {
+      // Extract ID from share link (format: https://domain/download/{id})
+      const parts = shareLink.split('/')
+      const shareId = parts[parts.length - 1]
+      
+      if (!shareId) throw new Error('Could not extract shareId from link')
+      
+      const response = await fetch(`/api/file/${shareId}`)
+      
+      if (!response.ok) {
+        throw new Error(`Backend proxy returned ${response.status}`)
+      }
+      
+      const result = await response.json()
+      
+      if (result.success && result.data) {
+        console.log('✓ Successfully retrieved file from backend proxy: ' + result.data.fileName)
+        return result.data as SharedFileMetadata
+      } else {
+        throw new Error(result.error || 'Backend proxy returned no data')
+      }
+    } catch (proxyError: any) {
+      console.error('Backend proxy also failed:', proxyError.message)
+      throw error // Throw original Firestore error
+    }
+  }
 }
 
 export const getFileMetadataByShareId = async (
@@ -479,7 +509,31 @@ export const getFileMetadataByShareId = async (
     }
   }
 
-  return attemptQuery()
+  try {
+    return await attemptQuery()
+  } catch (error: any) {
+    // All Firestore attempts failed - fallback to backend proxy
+    console.warn('⚠️  Firestore failed - trying backend proxy...')
+    try {
+      const response = await fetch(`/api/file/${shareId}`)
+      
+      if (!response.ok) {
+        throw new Error(`Backend proxy returned ${response.status}`)
+      }
+      
+      const result = await response.json()
+      
+      if (result.success && result.data) {
+        console.log('✓ Successfully retrieved file from backend proxy: ' + result.data.fileName)
+        return result.data as SharedFileMetadata
+      } else {
+        throw new Error(result.error || 'Backend proxy returned no data')
+      }
+    } catch (proxyError: any) {
+      console.error('Backend proxy also failed:', proxyError.message)
+      throw error // Throw original Firestore error
+    }
+  }
 }
 
 // Get all user files
