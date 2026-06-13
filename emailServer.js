@@ -27,19 +27,34 @@ try {
   console.log('✓ Firebase Admin already initialized')
 } catch (error) {
   try {
-    // Use service account from environment
-    const serviceAccount = process.env.FIREBASE_SERVICE_ACCOUNT
-    if (serviceAccount) {
+    // Use service account from environment - supports both base64 encoded and plain JSON
+    let serviceAccountJson = process.env.FIREBASE_SERVICE_ACCOUNT || process.env.FIREBASE_SERVICE_ACCOUNT_B64
+    
+    if (serviceAccountJson) {
+      // Check if it's base64 encoded (base64 encoded JSON will start with eyJ)
+      if (serviceAccountJson.startsWith('eyJ')) {
+        console.log('🔐 Decoding base64 Firebase service account...')
+        serviceAccountJson = Buffer.from(serviceAccountJson, 'base64').toString('utf8')
+      }
+      
+      const serviceAccount = JSON.parse(serviceAccountJson)
+      const projectId = serviceAccount.project_id || process.env.FIREBASE_PROJECT_ID
+      
       admin.initializeApp({
-        credential: admin.credential.cert(JSON.parse(serviceAccount)),
-        databaseURL: `https://${process.env.FIREBASE_PROJECT_ID}.firebaseio.com`,
+        credential: admin.credential.cert(serviceAccount),
+        databaseURL: `https://${projectId}.firebaseio.com`,
       })
       console.log('✓ Firebase Admin initialized with service account')
     } else {
       console.warn('⚠️  No FIREBASE_SERVICE_ACCOUNT environment variable - Firestore proxy will not work')
     }
   } catch (err) {
-    console.warn('⚠️  Could not initialize Firebase Admin:', err.message)
+    console.error('❌ Firebase Admin initialization error:')
+    console.error('   Error:', err.message)
+    if (err instanceof SyntaxError) {
+      console.error('   Issue: JSON parsing failed - check if the service account is valid JSON or valid base64')
+    }
+    console.warn('⚠️  Firestore proxy will not work - check environment variables!')
   }
 }
 
