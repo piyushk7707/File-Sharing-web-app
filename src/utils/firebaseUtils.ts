@@ -378,86 +378,152 @@ export const saveFileMetadata = async (
 export const getFileMetadataByLink = async (
   shareLink: string,
 ): Promise<SharedFileMetadata | null> => {
-  try {
-    console.log('Querying Firestore for shareLink: ' + shareLink)
-    const q = query(collection(db, 'files'), where('shareLink', '==', shareLink))
-    const querySnapshot = await getDocs(q)
+  const maxRetries = 3
+  let retryCount = 0
 
-    console.log('Query returned ' + querySnapshot.size + ' documents')
+  const attemptQuery = async (): Promise<SharedFileMetadata | null> => {
+    try {
+      console.log(`[Attempt ${retryCount + 1}/${maxRetries}] Querying Firestore for shareLink: ${shareLink}`)
+      const q = query(collection(db, 'files'), where('shareLink', '==', shareLink))
+      const querySnapshot = await getDocs(q)
 
-    if (querySnapshot.empty) {
-      console.warn('No documents found with shareLink: ' + shareLink)
-      return null
+      console.log('Query returned ' + querySnapshot.size + ' documents')
+
+      if (querySnapshot.empty) {
+        console.warn('No documents found with shareLink: ' + shareLink)
+        return null
+      }
+
+      const doc = querySnapshot.docs[0]
+      const data = { id: doc.id, ...doc.data() } as SharedFileMetadata
+      console.log('✓ Found file: ' + data.fileName)
+      return data
+    } catch (error: any) {
+      console.error(`[Attempt ${retryCount + 1}] Metadata fetch error: ${error.message}`)
+
+      if (
+        error.message?.includes('offline') ||
+        error.code === 'failed-precondition' ||
+        error.code === 'unavailable'
+      ) {
+        retryCount++
+        if (retryCount < maxRetries) {
+          console.log(`⏳ Connection issue detected. Retrying in 1 second... (${retryCount}/${maxRetries})`)
+          await new Promise((resolve) => setTimeout(resolve, 1000))
+          return attemptQuery()
+        }
+      }
+
+      throw error
     }
-
-    const doc = querySnapshot.docs[0]
-    const data = { id: doc.id, ...doc.data() } as SharedFileMetadata
-    console.log('Found file: ' + data.fileName)
-    return data
-  } catch (error) {
-    console.error('Metadata fetch error:', error)
-    throw error
   }
+
+  return attemptQuery()
 }
 
 export const getFileMetadataByShareId = async (
   shareId: string,
 ): Promise<SharedFileMetadata | null> => {
-  try {
-    const docRef = doc(db, 'files', shareId)
-    const directSnapshot = await getDoc(docRef)
+  const maxRetries = 3
+  let retryCount = 0
 
-    if (directSnapshot.exists()) {
-      const directData = {
-        id: directSnapshot.id,
-        ...directSnapshot.data(),
-      } as SharedFileMetadata
-      console.log('Found file by document ID: ' + directData.fileName)
-      return directData
+  const attemptQuery = async (): Promise<SharedFileMetadata | null> => {
+    try {
+      console.log(`[Attempt ${retryCount + 1}/${maxRetries}] Fetching file metadata for shareId: ${shareId}`)
+      
+      const docRef = doc(db, 'files', shareId)
+      const directSnapshot = await getDoc(docRef)
+
+      if (directSnapshot.exists()) {
+        const directData = {
+          id: directSnapshot.id,
+          ...directSnapshot.data(),
+        } as SharedFileMetadata
+        console.log('✓ Found file by document ID: ' + directData.fileName)
+        return directData
+      }
+
+      console.log('Querying Firestore for shareId: ' + shareId)
+      const q = query(collection(db, 'files'), where('shareId', '==', shareId))
+      const querySnapshot = await getDocs(q)
+
+      console.log('ShareId query returned ' + querySnapshot.size + ' documents')
+
+      if (querySnapshot.empty) {
+        console.warn('No documents found with shareId: ' + shareId)
+        return null
+      }
+
+      const foundDoc = querySnapshot.docs[0]
+      const data = { id: foundDoc.id, ...foundDoc.data() } as SharedFileMetadata
+      console.log('✓ Found file by shareId: ' + data.fileName)
+      return data
+    } catch (error: any) {
+      console.error(`[Attempt ${retryCount + 1}] Error: ${error.message}`)
+
+      // Check if it's an offline error
+      if (
+        error.message?.includes('offline') ||
+        error.code === 'failed-precondition' ||
+        error.code === 'unavailable'
+      ) {
+        retryCount++
+        if (retryCount < maxRetries) {
+          console.log(`⏳ Connection issue detected. Retrying in 1 second... (${retryCount}/${maxRetries})`)
+          await new Promise((resolve) => setTimeout(resolve, 1000))
+          return attemptQuery()
+        }
+      }
+
+      throw error
     }
-
-    console.log('Querying Firestore for shareId: ' + shareId)
-    const q = query(collection(db, 'files'), where('shareId', '==', shareId))
-    const querySnapshot = await getDocs(q)
-
-    console.log('ShareId query returned ' + querySnapshot.size + ' documents')
-
-    if (querySnapshot.empty) {
-      console.warn('No documents found with shareId: ' + shareId)
-      return null
-    }
-
-    const foundDoc = querySnapshot.docs[0]
-    const data = { id: foundDoc.id, ...foundDoc.data() } as SharedFileMetadata
-    console.log('Found file by shareId: ' + data.fileName)
-    return data
-  } catch (error) {
-    console.error('Metadata fetch by shareId error:', error)
-    throw error
   }
+
+  return attemptQuery()
 }
 
 // Get all user files
 export const getAllUserFiles = async (): Promise<SharedFileMetadata[]> => {
-  try {
-    console.log('Querying all files from Firestore...')
-    const querySnapshot = await getDocs(collection(db, 'files'))
-    console.log('Found ' + querySnapshot.size + ' total files in database')
+  const maxRetries = 3
+  let retryCount = 0
 
-    const files = querySnapshot.docs.map((doc: any) => {
-      const data = {
-        id: doc.id,
-        ...doc.data(),
-      } as SharedFileMetadata
-      console.log('   - File: ' + data.fileName + ' | ID: ' + doc.id.substring(0, 8) + '... | Path: ' + (data.storagePath?.substring(0, 30) || ''))
-      return data
-    })
+  const attemptQuery = async (): Promise<SharedFileMetadata[]> => {
+    try {
+      console.log(`[Attempt ${retryCount + 1}/${maxRetries}] Querying all files from Firestore...`)
+      const querySnapshot = await getDocs(collection(db, 'files'))
+      console.log('Found ' + querySnapshot.size + ' total files in database')
 
-    return files
-  } catch (error) {
-    console.error('Files fetch error:', error)
-    throw error
+      const files = querySnapshot.docs.map((doc: any) => {
+        const data = {
+          id: doc.id,
+          ...doc.data(),
+        } as SharedFileMetadata
+        console.log('   - File: ' + data.fileName + ' | ID: ' + doc.id.substring(0, 8) + '... | Path: ' + (data.storagePath?.substring(0, 30) || ''))
+        return data
+      })
+
+      return files
+    } catch (error: any) {
+      console.error(`[Attempt ${retryCount + 1}] Files fetch error: ${error.message}`)
+
+      if (
+        error.message?.includes('offline') ||
+        error.code === 'failed-precondition' ||
+        error.code === 'unavailable'
+      ) {
+        retryCount++
+        if (retryCount < maxRetries) {
+          console.log(`⏳ Connection issue detected. Retrying in 1 second... (${retryCount}/${maxRetries})`)
+          await new Promise((resolve) => setTimeout(resolve, 1000))
+          return attemptQuery()
+        }
+      }
+
+      throw error
+    }
   }
+
+  return attemptQuery()
 }
 
 // Update file metadata
