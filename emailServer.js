@@ -21,6 +21,10 @@ app.use(cors())
 app.use(express.json())
 
 // Initialize Firebase Admin for backend Firestore access
+console.log('\n' + '='.repeat(60))
+console.log('FIREBASE ADMIN INITIALIZATION')
+console.log('='.repeat(60))
+
 try {
   // Check if Firebase Admin is already initialized
   admin.app()
@@ -28,35 +32,60 @@ try {
 } catch (error) {
   try {
     // Use service account from environment - supports both base64 encoded and plain JSON
-    let serviceAccountJson = process.env.FIREBASE_SERVICE_ACCOUNT || process.env.FIREBASE_SERVICE_ACCOUNT_B64
+    const serviceAccountEnv = process.env.FIREBASE_SERVICE_ACCOUNT || process.env.FIREBASE_SERVICE_ACCOUNT_B64
     
-    if (serviceAccountJson) {
+    console.log(`📝 FIREBASE_SERVICE_ACCOUNT env: ${process.env.FIREBASE_SERVICE_ACCOUNT ? 'SET (plain JSON)' : 'NOT SET'}`)
+    console.log(`📝 FIREBASE_SERVICE_ACCOUNT_B64 env: ${process.env.FIREBASE_SERVICE_ACCOUNT_B64 ? 'SET (base64)' : 'NOT SET'}`)
+    console.log(`📝 FIREBASE_PROJECT_ID env: ${process.env.FIREBASE_PROJECT_ID ? 'SET' : 'NOT SET'}`)
+    
+    if (!serviceAccountEnv) {
+      console.warn('⚠️  No Firebase service account found in environment!')
+      console.warn('   Set either FIREBASE_SERVICE_ACCOUNT or FIREBASE_SERVICE_ACCOUNT_B64')
+    } else {
+      let serviceAccountJson = serviceAccountEnv
+      
       // Check if it's base64 encoded (base64 encoded JSON will start with eyJ)
       if (serviceAccountJson.startsWith('eyJ')) {
-        console.log('🔐 Decoding base64 Firebase service account...')
-        serviceAccountJson = Buffer.from(serviceAccountJson, 'base64').toString('utf8')
+        console.log('🔐 Detected base64 encoding - decoding...')
+        try {
+          serviceAccountJson = Buffer.from(serviceAccountJson, 'base64').toString('utf8')
+          console.log('✓ Base64 decoded successfully')
+        } catch (decodeErr) {
+          console.error('❌ Base64 decode failed:', decodeErr.message)
+          throw decodeErr
+        }
       }
       
+      console.log('📝 Parsing JSON service account...')
       const serviceAccount = JSON.parse(serviceAccountJson)
       const projectId = serviceAccount.project_id || process.env.FIREBASE_PROJECT_ID
+      
+      console.log(`📝 Project ID: ${projectId}`)
+      console.log('🔗 Initializing Firebase Admin...')
       
       admin.initializeApp({
         credential: admin.credential.cert(serviceAccount),
         databaseURL: `https://${projectId}.firebaseio.com`,
       })
-      console.log('✓ Firebase Admin initialized with service account')
-    } else {
-      console.warn('⚠️  No FIREBASE_SERVICE_ACCOUNT environment variable - Firestore proxy will not work')
+      console.log('✅ Firebase Admin initialized successfully!')
     }
   } catch (err) {
-    console.error('❌ Firebase Admin initialization error:')
-    console.error('   Error:', err.message)
-    if (err instanceof SyntaxError) {
-      console.error('   Issue: JSON parsing failed - check if the service account is valid JSON or valid base64')
+    console.error('❌ Firebase Admin initialization FAILED!')
+    console.error('   Error Type:', err.constructor.name)
+    console.error('   Error Message:', err.message)
+    if (err.stack) {
+      console.error('   Stack:', err.stack.split('\n').slice(0, 3).join('\n'))
     }
-    console.warn('⚠️  Firestore proxy will not work - check environment variables!')
+    if (err instanceof SyntaxError) {
+      console.error('   Issue: JSON parsing failed')
+      console.error('   - Check if service account is valid JSON')
+      console.error('   - Check if base64 decoding worked correctly')
+    }
+    console.warn('\n⚠️  Firestore proxy will NOT work - admin SDK not initialized')
   }
 }
+
+console.log('='.repeat(60) + '\n')
 
 const GMAIL_USER = process.env.GMAIL_USER || 'your-email@gmail.com'
 const GMAIL_APP_PASSWORD = process.env.GMAIL_APP_PASSWORD || 'your-16-char-app-password'
@@ -255,29 +284,42 @@ app.get('/api/file/:shareId', async (req, res) => {
       return res.status(400).json({ error: 'shareId is required' })
     }
 
-    console.log(`[Firestore Proxy] Fetching file by shareId: ${shareId}`)
+    console.log(`\n[Firestore Proxy] Fetching file by shareId: ${shareId}`)
 
     // Try to get from Firestore using Admin SDK
     try {
-      const db = admin.firestore()
+      // Check if Firebase Admin is initialized
+      let db
+      try {
+        db = admin.firestore()
+      } catch (adminError) {
+        console.error('❌ Firebase Admin not initialized:', adminError.message)
+        return res.status(503).json({
+          success: false,
+          error: 'Firestore backend not initialized',
+          details: 'Firebase service account not configured. Check environment variables.',
+        })
+      }
       
       // First try direct document access
+      console.log(`📝 Attempting direct document lookup...`)
       const docRef = db.collection('files').doc(shareId)
       const docSnapshot = await docRef.get()
       
       if (docSnapshot.exists()) {
-        console.log(`✓ Found file by document ID: ${docSnapshot.data().fileName}`)
+        const fileData = docSnapshot.data()
+        console.log(`✅ Found file by document ID: ${fileData.fileName}`)
         return res.json({
           success: true,
           data: {
             id: docSnapshot.id,
-            ...docSnapshot.data(),
+            ...fileData,
           },
         })
       }
 
       // Fallback: Query by shareId field
-      console.log(`Querying Firestore for shareId field: ${shareId}`)
+      console.log(`📝 Trying query by shareId field...`)
       const querySnapshot = await db.collection('files')
         .where('shareId', '==', shareId)
         .limit(1)
@@ -285,31 +327,34 @@ app.get('/api/file/:shareId', async (req, res) => {
 
       if (!querySnapshot.empty) {
         const doc = querySnapshot.docs[0]
-        console.log(`✓ Found file by shareId query: ${doc.data().fileName}`)
+        const fileData = doc.data()
+        console.log(`✅ Found file by shareId query: ${fileData.fileName}`)
         return res.json({
           success: true,
           data: {
             id: doc.id,
-            ...doc.data(),
+            ...fileData,
           },
         })
       }
 
-      console.warn(`✗ No file found with shareId: ${shareId}`)
+      console.warn(`❌ No file found with shareId: ${shareId}`)
       return res.status(404).json({
         success: false,
         error: 'File not found',
         shareId: shareId,
       })
     } catch (firebaseError) {
-      console.error('Firebase Admin error:', firebaseError.message)
+      console.error('❌ Firestore Query Error:', firebaseError.code || firebaseError.message)
+      console.error('   Details:', firebaseError.message)
       return res.status(500).json({
         success: false,
-        error: 'Firestore backend error: ' + firebaseError.message,
+        error: 'Firestore query failed: ' + firebaseError.message,
+        code: firebaseError.code,
       })
     }
   } catch (error) {
-    console.error('Proxy endpoint error:', error.message)
+    console.error('❌ Proxy endpoint error:', error.message)
     res.status(500).json({
       success: false,
       error: error.message || 'Unknown server error',
