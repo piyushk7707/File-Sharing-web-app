@@ -1,6 +1,10 @@
 import { initializeApp, getApps, getApp } from 'firebase/app'
 import { getStorage } from 'firebase/storage'
-import { getFirestore, enableIndexedDbPersistence } from 'firebase/firestore'
+import {
+  initializeFirestore,
+  persistentLocalCache,
+  persistentMultipleTabManager,
+} from 'firebase/firestore'
 import { 
   getAuth, 
   GoogleAuthProvider, 
@@ -35,23 +39,13 @@ console.log('[Firebase] App initialized successfully')
 export const storage = getStorage(app)
 console.log('[Firebase] Storage service initialized')
 
-export const db = getFirestore(app)
-console.log('[Firebase] Firestore service initialized')
-
-// Enable offline persistence for Firestore - Fix for "client is offline" errors
-enableIndexedDbPersistence(db)
-  .then(() => {
-    console.log('[Firebase] Firestore offline persistence enabled - Downloads will work offline!')
-  })
-  .catch((error) => {
-    if (error.code === 'failed-precondition') {
-      console.warn('[Firebase] Multiple tabs open - offline persistence disabled in this tab')
-    } else if (error.code === 'unimplemented') {
-      console.warn('[Firebase] Browser does not support offline persistence')
-    } else {
-      console.error('[Firebase] Offline persistence error:', error)
-    }
-  })
+export const db = initializeFirestore(app, {
+  localCache: persistentLocalCache({
+    tabManager: persistentMultipleTabManager(),
+  }),
+  experimentalAutoDetectLongPolling: true,
+})
+console.log('[Firebase] Firestore service initialized with persistent local cache')
 
 export const auth = getAuth(app)
 console.log('[Firebase] Auth service initialized')

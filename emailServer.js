@@ -20,6 +20,25 @@ const STORAGE_BUCKET_NAME = process.env.STORAGE_BUCKET_NAME || 'fileshare-b0e2c.
 app.use(cors())
 app.use(express.json())
 
+const parseFirebaseServiceAccount = () => {
+  if (process.env.FIREBASE_SERVICE_ACCOUNT_B64) {
+    const normalizedBase64 = process.env.FIREBASE_SERVICE_ACCOUNT_B64.replace(/\s/g, '')
+    const decodedJson = Buffer.from(normalizedBase64, 'base64').toString('utf8')
+
+    if (!decodedJson.trim().startsWith('{')) {
+      throw new Error('FIREBASE_SERVICE_ACCOUNT_B64 decoded value is not JSON')
+    }
+
+    return JSON.parse(decodedJson)
+  }
+
+  if (process.env.FIREBASE_SERVICE_ACCOUNT) {
+    return JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT)
+  }
+
+  return null
+}
+
 // Initialize Firebase Admin for backend Firestore access
 console.log('\n' + '='.repeat(60))
 console.log('FIREBASE ADMIN INITIALIZATION')
@@ -32,32 +51,17 @@ try {
 } catch (error) {
   try {
     // Use service account from environment - supports both base64 encoded and plain JSON
-    const serviceAccountEnv = process.env.FIREBASE_SERVICE_ACCOUNT || process.env.FIREBASE_SERVICE_ACCOUNT_B64
+    const serviceAccount = parseFirebaseServiceAccount()
     
     console.log(`📝 FIREBASE_SERVICE_ACCOUNT env: ${process.env.FIREBASE_SERVICE_ACCOUNT ? 'SET (plain JSON)' : 'NOT SET'}`)
     console.log(`📝 FIREBASE_SERVICE_ACCOUNT_B64 env: ${process.env.FIREBASE_SERVICE_ACCOUNT_B64 ? 'SET (base64)' : 'NOT SET'}`)
     console.log(`📝 FIREBASE_PROJECT_ID env: ${process.env.FIREBASE_PROJECT_ID ? 'SET' : 'NOT SET'}`)
     
-    if (!serviceAccountEnv) {
+    if (!serviceAccount) {
       console.warn('⚠️  No Firebase service account found in environment!')
       console.warn('   Set either FIREBASE_SERVICE_ACCOUNT or FIREBASE_SERVICE_ACCOUNT_B64')
     } else {
-      let serviceAccountJson = serviceAccountEnv
-      
-      // Check if it's base64 encoded (base64 encoded JSON will start with eyJ)
-      if (serviceAccountJson.startsWith('eyJ')) {
-        console.log('🔐 Detected base64 encoding - decoding...')
-        try {
-          serviceAccountJson = Buffer.from(serviceAccountJson, 'base64').toString('utf8')
-          console.log('✓ Base64 decoded successfully')
-        } catch (decodeErr) {
-          console.error('❌ Base64 decode failed:', decodeErr.message)
-          throw decodeErr
-        }
-      }
-      
-      console.log('📝 Parsing JSON service account...')
-      const serviceAccount = JSON.parse(serviceAccountJson)
+      console.log('Firebase service account loaded successfully')
       const projectId = serviceAccount.project_id || process.env.FIREBASE_PROJECT_ID
       
       console.log(`📝 Project ID: ${projectId}`)

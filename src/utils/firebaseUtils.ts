@@ -430,7 +430,7 @@ export const getFileMetadataByLink = async (
       
       if (!shareId) throw new Error('Could not extract shareId from link')
       
-      const response = await fetch(`/api/file/${shareId}`)
+      const response = await fetch(`${config.server.apiBaseUrl}/api/file/${shareId}`)
       
       if (!response.ok) {
         throw new Error(`Backend proxy returned ${response.status}`)
@@ -515,7 +515,7 @@ export const getFileMetadataByShareId = async (
     // All Firestore attempts failed - fallback to backend proxy
     console.warn('⚠️  Firestore failed - trying backend proxy...')
     try {
-      const response = await fetch(`/api/file/${shareId}`)
+      const response = await fetch(`${config.server.apiBaseUrl}/api/file/${shareId}`)
       
       if (!response.ok) {
         throw new Error(`Backend proxy returned ${response.status}`)
