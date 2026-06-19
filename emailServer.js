@@ -176,8 +176,9 @@ const GMAIL_APP_PASSWORD = process.env.GMAIL_APP_PASSWORD || 'your-16-char-app-p
 // Configure Gmail transporter explicitly for robust cloud environment connections
 const transporter = nodemailer.createTransport({
   host: 'smtp.gmail.com',
-  port: 465,
-  secure: true, // Use SSL/TLS
+  port: 587,
+  secure: false,
+  requireTLS: true,
   auth: {
     user: GMAIL_USER,
     pass: GMAIL_APP_PASSWORD,
