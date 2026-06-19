@@ -173,12 +173,17 @@ console.log('='.repeat(60) + '\n')
 const GMAIL_USER = process.env.GMAIL_USER || 'your-email@gmail.com'
 const GMAIL_APP_PASSWORD = process.env.GMAIL_APP_PASSWORD || 'your-16-char-app-password'
 const SMTP_TIMEOUT_MS = parseInt(process.env.SMTP_TIMEOUT_MS || '15000', 10)
+const SMTP_HOST = process.env.SMTP_HOST || 'smtp.gmail.com'
+const SMTP_PORT = parseInt(process.env.SMTP_PORT || '587', 10)
+const SMTP_RESOLVED_HOST = process.env.SMTP_RESOLVED_HOST || (await dns.promises.resolve4(SMTP_HOST))[0]
+
+console.log(`SMTP host resolved: ${SMTP_HOST} -> ${SMTP_RESOLVED_HOST}`)
 
 
 
 const transporter = nodemailer.createTransport({
-  host: 'smtp.gmail.com',
-  port: 587,
+  host: SMTP_RESOLVED_HOST,
+  port: SMTP_PORT,
   secure: false,
   requireTLS: true,
   connectionTimeout: SMTP_TIMEOUT_MS,
@@ -190,9 +195,7 @@ const transporter = nodemailer.createTransport({
   },
   tls: {
     rejectUnauthorized: false,
-  },
-  dnsLookup: (hostname, options, callback) => {
-    dns.lookup(hostname, { family: 4 }, callback)
+    servername: SMTP_HOST,
   },
 })
 // Verify transporter connection
