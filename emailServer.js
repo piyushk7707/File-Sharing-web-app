@@ -176,37 +176,55 @@ const SMTP_TIMEOUT_MS = parseInt(process.env.SMTP_TIMEOUT_MS || '15000', 10)
 const SMTP_HOST = process.env.SMTP_HOST || 'smtp.gmail.com'
 const SMTP_PORT = parseInt(process.env.SMTP_PORT || '587', 10)
 const SMTP_RESOLVED_HOST = process.env.SMTP_RESOLVED_HOST || (await dns.promises.resolve4(SMTP_HOST))[0]
+const SMTP_PORTS = Array.from(new Set(
+  (process.env.SMTP_PORTS || `${SMTP_PORT},465,587`)
+    .split(',')
+    .map((port) => parseInt(port.trim(), 10))
+    .filter(Boolean)
+))
 
 console.log(`SMTP host resolved: ${SMTP_HOST} -> ${SMTP_RESOLVED_HOST}`)
+console.log(`SMTP ports to try: ${SMTP_PORTS.join(', ')}`)
 
 
 
-const transporter = nodemailer.createTransport({
-  host: SMTP_RESOLVED_HOST,
-  port: SMTP_PORT,
-  secure: false,
-  requireTLS: true,
-  connectionTimeout: SMTP_TIMEOUT_MS,
-  greetingTimeout: SMTP_TIMEOUT_MS,
-  socketTimeout: SMTP_TIMEOUT_MS,
-  auth: {
-    user: GMAIL_USER,
-    pass: GMAIL_APP_PASSWORD,
-  },
-  tls: {
-    rejectUnauthorized: false,
-    servername: SMTP_HOST,
-  },
-})
+const createSmtpTransporter = (port) => {
+  const secure = port === 465 || process.env.SMTP_SECURE === 'true'
+
+  return nodemailer.createTransport({
+    host: SMTP_RESOLVED_HOST,
+    port,
+    secure,
+    requireTLS: !secure,
+    connectionTimeout: SMTP_TIMEOUT_MS,
+    greetingTimeout: SMTP_TIMEOUT_MS,
+    socketTimeout: SMTP_TIMEOUT_MS,
+    auth: {
+      user: GMAIL_USER,
+      pass: GMAIL_APP_PASSWORD,
+    },
+    tls: {
+      rejectUnauthorized: false,
+      servername: SMTP_HOST,
+    },
+  })
+}
+
+const smtpTransporters = SMTP_PORTS.map((port) => ({
+  port,
+  transporter: createSmtpTransporter(port),
+}))
+
 // Verify transporter connection
-transporter.verify((error, success) => {
-  if (error) {
-    console.warn('Gmail not configured yet. Email will be logged to console.')
-    console.warn('Setup: myaccount.google.com/apppasswords')
-    appendLog('smtp-verify-error', error && (error.stack || error.message || error))
-  } else {
-    console.log('Gmail configured successfully')
-  }
+smtpTransporters.forEach(({ port, transporter }) => {
+  transporter.verify((error) => {
+    if (error) {
+      console.warn(`Gmail SMTP port ${port} not ready: ${error.message}`)
+      appendLog('smtp-verify-error', { port, error: error && (error.stack || error.message || error) })
+    } else {
+      console.log(`Gmail configured successfully on SMTP port ${port}`)
+    }
+  })
 })
 
 // Email sending endpoint
@@ -279,8 +297,26 @@ app.post('/api/send-email', async (req, res) => {
 
     // Send email
       try {
-        console.log(`Sending email to ${recipientEmail} via SMTP with ${SMTP_TIMEOUT_MS}ms timeout...`)
-        const info = await transporter.sendMail(mailOptions)
+        let info = null
+        let lastSendError = null
+
+        for (const { port, transporter } of smtpTransporters) {
+          try {
+            console.log(`Sending email to ${recipientEmail} via SMTP port ${port} with ${SMTP_TIMEOUT_MS}ms timeout...`)
+            info = await transporter.sendMail(mailOptions)
+            console.log(`SMTP port ${port} accepted email for ${recipientEmail}`)
+            break
+          } catch (attemptError) {
+            lastSendError = attemptError
+            console.warn(`SMTP port ${port} failed: ${attemptError && (attemptError.message || attemptError)}`)
+            appendLog('email-port-error', { port, to: recipientEmail, error: attemptError && (attemptError.stack || attemptError.message || attemptError) })
+          }
+        }
+
+        if (!info) {
+          throw lastSendError || new Error('All SMTP ports failed')
+        }
+
         const msg = `Email sent to ${recipientEmail}: ${info.messageId}`
         console.log(msg)
         appendLog('email-success', { to: recipientEmail, messageId: info.messageId, info: info })
