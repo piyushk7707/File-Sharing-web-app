@@ -72,6 +72,23 @@ app.get('/__error-logs', (req, res) => {
   }
 })
 
+// Receive client-side logs (protected by same token)
+app.post('/__client-log', express.json(), (req, res) => {
+  const token = process.env.ERROR_LOGS_TOKEN
+  const provided = req.get('x-error-logs-token') || req.query.token
+  if (!token || provided !== token) {
+    return res.status(403).json({ success: false, error: 'Forbidden' })
+  }
+  try {
+    const payload = req.body || {}
+    appendLog('client', payload)
+    return res.json({ success: true })
+  } catch (e) {
+    console.error('Failed to write client log:', e && e.message)
+    return res.status(500).json({ success: false, error: e && e.message })
+  }
+})
+
 app.use(cors())
 app.use(express.json())
 
