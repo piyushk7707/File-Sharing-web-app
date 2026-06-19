@@ -7,6 +7,7 @@ import nodemailer from 'nodemailer'
 import cors from 'cors'
 import path from 'path'
 import { fileURLToPath } from 'url'
+import fs from 'fs'
 
 // Firebase Admin SDK - For backend Firestore access
 import admin from 'firebase-admin'
@@ -16,6 +17,60 @@ const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 const PORT = process.env.PORT || process.env.SERVER_PORT || 3001
 const STORAGE_BUCKET_NAME = process.env.STORAGE_BUCKET_NAME || 'fileshare-b0e2c.firebasestorage.app'
+
+// --- Global error logging (writes to logs/error.log and exposes protected route when enabled) ---
+const LOG_DIR = path.join(__dirname, 'logs')
+try {
+  if (!fs.existsSync(LOG_DIR)) fs.mkdirSync(LOG_DIR, { recursive: true })
+} catch (e) {
+  console.warn('Could not create log directory:', e && e.message)
+}
+const LOG_FILE = path.join(LOG_DIR, 'error.log')
+
+const appendLog = (level, err) => {
+  try {
+    const ts = new Date().toISOString()
+    const msg = err && err.stack ? err.stack : (typeof err === 'string' ? err : JSON.stringify(err))
+    const entry = `[${ts}] [${level}] ${msg}\n`
+    try { fs.appendFileSync(LOG_FILE, entry) } catch (e) { /* ignore file write errors */ }
+    console.error(entry)
+  } catch (e) {
+    console.error('Failed to append log:', e && e.message)
+  }
+}
+
+process.on('uncaughtException', (err) => {
+  appendLog('uncaughtException', err)
+  // give time for log to flush
+  setTimeout(() => process.exit(1), 200)
+})
+
+process.on('unhandledRejection', (reason) => {
+  appendLog('unhandledRejection', reason)
+})
+
+// Protected endpoint to fetch recent error logs when `ERROR_LOGS_TOKEN` is set
+app.get('/__error-logs', (req, res) => {
+  const token = process.env.ERROR_LOGS_TOKEN
+  const provided = req.get('x-error-logs-token') || req.query.token
+  if (!token || provided !== token) {
+    return res.status(403).json({ success: false, error: 'Forbidden. Set ERROR_LOGS_TOKEN to enable log access.' })
+  }
+  try {
+    if (!fs.existsSync(LOG_FILE)) return res.json({ success: true, logs: '' })
+    const stats = fs.statSync(LOG_FILE)
+    const max = 20000
+    const start = Math.max(0, stats.size - max)
+    const fd = fs.openSync(LOG_FILE, 'r')
+    const buf = Buffer.alloc(Math.min(max, stats.size))
+    fs.readSync(fd, buf, 0, buf.length, start)
+    fs.closeSync(fd)
+    return res.type('text/plain').send(buf.toString())
+  } catch (e) {
+    console.error('Error reading log file:', e && e.message)
+    return res.status(500).json({ success: false, error: e && e.message })
+  }
+})
 
 app.use(cors())
 app.use(express.json())

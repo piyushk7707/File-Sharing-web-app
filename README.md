@@ -89,3 +89,27 @@ GitHub: [@piyushk7707](https://github.com/piyushk7707)
 
 ---
 *Built with ❤️ for secure, seamless file sharing.*
+
+## 🐞 Troubleshooting & Retrieving Logs
+
+- **Server logs**: The server writes runtime errors to `logs/error.log` next to `emailServer.js`. If you deployed the server, you can enable a protected endpoint to fetch recent logs by setting an environment variable `ERROR_LOGS_TOKEN` to a secret value and then requesting:
+
+   ```bash
+   curl -H "x-error-logs-token: $ERROR_LOGS_TOKEN" https://your-server.example.com/__error-logs
+   ```
+
+   Locally you can also view recent logs with:
+
+   ```bash
+   tail -n 200 ./logs/error.log
+   ```
+
+- **Client logs**: The frontend stores recent client-side errors in `localStorage` under key `clientErrors`. In the browser devtools console you can run:
+
+   ```js
+   JSON.parse(localStorage.getItem('clientErrors') || '[]').slice(-10)
+   ```
+
+   Additionally, a React `ErrorBoundary` is added to the app; when a component error occurs it shows a small UI with the error and a "Copy error" button so you can paste the full stack here for debugging.
+
+If you want, paste any server or client logs here and I'll help diagnose them.
