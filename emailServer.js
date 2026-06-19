@@ -8,7 +8,7 @@ import cors from 'cors'
 import path from 'path'
 import { fileURLToPath } from 'url'
 import fs from 'fs'
-
+import dns from 'dns'
 // Firebase Admin SDK - For backend Firestore access
 import admin from 'firebase-admin'
 
@@ -173,7 +173,8 @@ console.log('='.repeat(60) + '\n')
 const GMAIL_USER = process.env.GMAIL_USER || 'your-email@gmail.com'
 const GMAIL_APP_PASSWORD = process.env.GMAIL_APP_PASSWORD || 'your-16-char-app-password'
 
-// Configure Gmail transporter explicitly for robust cloud environment connections
+
+
 const transporter = nodemailer.createTransport({
   host: 'smtp.gmail.com',
   port: 587,
@@ -184,10 +185,12 @@ const transporter = nodemailer.createTransport({
     pass: GMAIL_APP_PASSWORD,
   },
   tls: {
-    rejectUnauthorized: false, // Prevents certificate lookup failures in containerized cloud servers
+    rejectUnauthorized: false,
+  },
+  dnsLookup: (hostname, options, callback) => {
+    dns.lookup(hostname, { family: 4 }, callback)
   },
 })
-
 // Verify transporter connection
 transporter.verify((error, success) => {
   if (error) {
