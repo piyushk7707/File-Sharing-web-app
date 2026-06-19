@@ -266,15 +266,24 @@ app.post('/api/send-email', async (req, res) => {
     }
 
     // Send email
-    const info = await transporter.sendMail(mailOptions)
-
-    console.log('Email sent to ' + recipientEmail + ': ' + info.messageId)
-
-    return res.status(200).json({
-      success: true,
-      message: `Email sent successfully to ${recipientEmail}`,
-      messageId: info.messageId,
-    })
+      try {
+        const info = await transporter.sendMail(mailOptions)
+        const msg = `Email sent to ${recipientEmail}: ${info.messageId}`
+        console.log(msg)
+        appendLog('email-success', { to: recipientEmail, messageId: info.messageId, info: info })
+        return res.status(200).json({
+          success: true,
+          message: `Email sent successfully to ${recipientEmail}`,
+          messageId: info.messageId,
+        })
+      } catch (sendErr) {
+        console.error('Email sending error:', sendErr && (sendErr.stack || sendErr.message || sendErr))
+        appendLog('email-error', { to: recipientEmail, error: sendErr && (sendErr.stack || sendErr.message || sendErr) })
+        return res.status(500).json({
+          success: false,
+          error: sendErr && (sendErr.message || String(sendErr)) || 'Failed to send email',
+        })
+      }
   } catch (error) {
     console.error('Email sending error:', error.message)
     return res.status(500).json({
