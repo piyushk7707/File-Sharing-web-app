@@ -172,6 +172,7 @@ console.log('='.repeat(60) + '\n')
 
 const GMAIL_USER = process.env.GMAIL_USER || 'your-email@gmail.com'
 const GMAIL_APP_PASSWORD = process.env.GMAIL_APP_PASSWORD || 'your-16-char-app-password'
+const SMTP_TIMEOUT_MS = parseInt(process.env.SMTP_TIMEOUT_MS || '15000', 10)
 
 
 
@@ -180,6 +181,9 @@ const transporter = nodemailer.createTransport({
   port: 587,
   secure: false,
   requireTLS: true,
+  connectionTimeout: SMTP_TIMEOUT_MS,
+  greetingTimeout: SMTP_TIMEOUT_MS,
+  socketTimeout: SMTP_TIMEOUT_MS,
   auth: {
     user: GMAIL_USER,
     pass: GMAIL_APP_PASSWORD,
@@ -196,6 +200,7 @@ transporter.verify((error, success) => {
   if (error) {
     console.warn('Gmail not configured yet. Email will be logged to console.')
     console.warn('Setup: myaccount.google.com/apppasswords')
+    appendLog('smtp-verify-error', error && (error.stack || error.message || error))
   } else {
     console.log('Gmail configured successfully')
   }
@@ -271,6 +276,7 @@ app.post('/api/send-email', async (req, res) => {
 
     // Send email
       try {
+        console.log(`Sending email to ${recipientEmail} via SMTP with ${SMTP_TIMEOUT_MS}ms timeout...`)
         const info = await transporter.sendMail(mailOptions)
         const msg = `Email sent to ${recipientEmail}: ${info.messageId}`
         console.log(msg)

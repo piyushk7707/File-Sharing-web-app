@@ -3,12 +3,33 @@
 
 import { config } from '../config/appConfig'
 
+const EMAIL_REQUEST_TIMEOUT_MS = 20000
+
 export interface EmailOptions {
   recipientEmail: string
   fileName: string
   shareLink: string
   senderName?: string
   expiryText?: string
+}
+
+const fetchWithTimeout = async (url: string, init: RequestInit, timeoutMs = EMAIL_REQUEST_TIMEOUT_MS) => {
+  const controller = new AbortController()
+  const timeoutId = window.setTimeout(() => controller.abort(), timeoutMs)
+
+  try {
+    return await fetch(url, {
+      ...init,
+      signal: controller.signal,
+    })
+  } catch (error) {
+    if (error instanceof DOMException && error.name === 'AbortError') {
+      throw new Error(`Email service timed out after ${Math.round(timeoutMs / 1000)} seconds`)
+    }
+    throw error
+  } finally {
+    window.clearTimeout(timeoutId)
+  }
 }
 
 /**
@@ -19,7 +40,7 @@ export const sendFileEmailViaCF = async (options: EmailOptions): Promise<boolean
   try {
     const cloudFunctionURL = config.cloudFunctions.sendEmailUrl
 
-    const response = await fetch(cloudFunctionURL, {
+    const response = await fetchWithTimeout(cloudFunctionURL, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -54,7 +75,7 @@ export const sendFileEmailViaBackend = async (options: EmailOptions): Promise<bo
   try {
     const backendURL = `${config.server.apiBaseUrl}/api/send-email`
 
-    const response = await fetch(backendURL, {
+    const response = await fetchWithTimeout(backendURL, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
