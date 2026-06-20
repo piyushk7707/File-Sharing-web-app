@@ -392,6 +392,13 @@ try {
         error: sendErr.message || 'Failed to send email',
       })
     }
+    } catch (error) {
+      console.error('Email sending error:', error && (error.message || error))
+      return res.status(500).json({
+        success: false,
+        error: (error && error.message) || 'Failed to send email',
+      })
+    }
   })
 // SIMPLE Download proxy endpoint - takes any Firebase Storage URL and fetches it server-side
 app.post('/api/download', async (req, res) => {
