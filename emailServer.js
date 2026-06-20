@@ -1,8 +1,4 @@
-  }
-
-try {
-
-import express from 'express'
+  import express from 'express'
 import nodemailer from 'nodemailer'
 import cors from 'cors'
 import path from 'path'
