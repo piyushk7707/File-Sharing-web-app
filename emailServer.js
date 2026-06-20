@@ -1,6 +1,6 @@
+  }
 
-import dotenv from 'dotenv'
-dotenv.config() // Load .env.local file
+try {
 
 import express from 'express'
 import nodemailer from 'nodemailer'
