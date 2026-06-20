@@ -348,58 +348,72 @@ app.post('/api/send-email', async (req, res) => {
 //     })
 //   }
 // })
-try {
-  const gmail = google.gmail({
-    version: 'v1',
-    auth: oauth2Client,
-  })
-
-  const emailLines = [
-    `From: Droply <${GMAIL_USER}>`,
-    `To: ${recipientEmail}`,
-    `Subject: ${senderName || 'Someone'} shared "${fileName}" with you via Droply`,
-    'MIME-Version: 1.0',
-    'Content-Type: text/html; charset=UTF-8',
-    '',
-    mailOptions.html,
-  ]
-
-  const raw = Buffer.from(emailLines.join('\n'))
-    .toString('base64')
-    .replace(/\+/g, '-')
-    .replace(/\//g, '_')
-    .replace(/=+$/, '')
-
-  const result = await gmail.users.messages.send({
-    userId: 'me',
-    requestBody: {
-      raw,
-    },
-  })
-
-  console.log(`Email sent to ${recipientEmail}: ${result.data.id}`)
-
-  return res.status(200).json({
-    success: true,
-    message: `Email sent successfully to ${recipientEmail}`,
-    messageId: result.data.id,
-  })
-} catch (sendErr) {
-      console.error('Email sending error:', sendErr)
-
-      return res.status(500).json({
-        success: false,
-        error: sendErr.message || 'Failed to send email',
-      })
+  // Try Google Gmail API via dynamic import first. If unavailable, attempt SMTP via nodemailer.
+  try {
+    let gmailApi = null
+    try {
+      const googlePkg = await import('googleapis')
+      const { google } = googlePkg
+      const oauth2Client = new google.auth.OAuth2(
+        process.env.GOOGLE_CLIENT_ID,
+        process.env.GOOGLE_CLIENT_SECRET,
+      )
+      oauth2Client.setCredentials({ refresh_token: process.env.GOOGLE_REFRESH_TOKEN })
+      gmailApi = google.gmail({ version: 'v1', auth: oauth2Client })
+    } catch (modErr) {
+      appendLog('email-module-import-failed', { error: String(modErr) })
     }
-    } catch (error) {
-      console.error('Email sending error:', error && (error.message || error))
-      return res.status(500).json({
-        success: false,
-        error: (error && error.message) || 'Failed to send email',
-      })
+
+    if (gmailApi) {
+      const emailLines = [
+        `From: Droply <${GMAIL_USER}>`,
+        `To: ${recipientEmail}`,
+        `Subject: ${senderName || 'Someone'} shared "${fileName}" with you via Droply`,
+        'MIME-Version: 1.0',
+        'Content-Type: text/html; charset=UTF-8',
+        '',
+        mailOptions.html,
+      ]
+
+      const raw = Buffer.from(emailLines.join('\n'))
+        .toString('base64')
+        .replace(/\+/g, '-')
+        .replace(/\//g, '_')
+        .replace(/=+$/, '')
+
+      const result = await gmailApi.users.messages.send({ userId: 'me', requestBody: { raw } })
+      appendLog('email-success-gmail', { to: recipientEmail, messageId: result.data.id })
+      return res.status(200).json({ success: true, message: `Email sent successfully to ${recipientEmail}`, messageId: result.data.id })
     }
-  })
+
+    // Fallback to nodemailer if Gmail API not available
+    try {
+      const nodemailerPkg = await import('nodemailer')
+      const nodemailer = nodemailerPkg.default || nodemailerPkg
+      const transporter = nodemailer.createTransport({
+        host: process.env.SMTP_HOST || 'smtp.gmail.com',
+        port: parseInt(process.env.SMTP_PORT || '587', 10),
+        secure: (process.env.SMTP_PORT === '465'),
+        auth: {
+          user: process.env.GMAIL_USER,
+          pass: process.env.GMAIL_APP_PASSWORD,
+        },
+        tls: { rejectUnauthorized: false },
+      })
+
+      const info = await transporter.sendMail(mailOptions)
+      appendLog('email-success-smtp', { to: recipientEmail, messageId: info.messageId })
+      return res.status(200).json({ success: true, message: `Email sent via SMTP to ${recipientEmail}`, messageId: info.messageId })
+    } catch (smtpErr) {
+      appendLog('email-smtp-failed', { error: String(smtpErr) })
+      console.error('Email SMTP fallback failed:', smtpErr)
+      return res.status(503).json({ success: false, error: 'Email service unavailable' })
+    }
+  } catch (sendErr) {
+    appendLog('email-error', { to: recipientEmail, error: String(sendErr) })
+    console.error('Email sending error:', sendErr)
+    return res.status(500).json({ success: false, error: sendErr && (sendErr.message || String(sendErr)) || 'Failed to send email' })
+  }
 // SIMPLE Download proxy endpoint - takes any Firebase Storage URL and fetches it server-side
 app.post('/api/download', async (req, res) => {
   try {
