@@ -11,6 +11,8 @@ import fs from 'fs'
 import dns from 'dns'
 // Firebase Admin SDK - For backend Firestore access
 import admin from 'firebase-admin'
+import { google } from 'googleapis'
+
 
 const app = express()
 const __filename = fileURLToPath(import.meta.url)
@@ -170,63 +172,72 @@ try {
 
 console.log('='.repeat(60) + '\n')
 
-const GMAIL_USER = process.env.GMAIL_USER || 'your-email@gmail.com'
-const GMAIL_APP_PASSWORD = process.env.GMAIL_APP_PASSWORD || 'your-16-char-app-password'
-const SMTP_TIMEOUT_MS = parseInt(process.env.SMTP_TIMEOUT_MS || '15000', 10)
-const SMTP_HOST = process.env.SMTP_HOST || 'smtp.gmail.com'
-const SMTP_PORT = parseInt(process.env.SMTP_PORT || '587', 10)
-const SMTP_RESOLVED_HOST = process.env.SMTP_RESOLVED_HOST || (await dns.promises.resolve4(SMTP_HOST))[0]
-const SMTP_PORTS = Array.from(new Set(
-  (process.env.SMTP_PORTS || `${SMTP_PORT},465,587`)
-    .split(',')
-    .map((port) => parseInt(port.trim(), 10))
-    .filter(Boolean)
-))
+// const GMAIL_USER = process.env.GMAIL_USER || 'your-email@gmail.com'
+// const GMAIL_APP_PASSWORD = process.env.GMAIL_APP_PASSWORD || 'your-16-char-app-password'
+// const SMTP_TIMEOUT_MS = parseInt(process.env.SMTP_TIMEOUT_MS || '15000', 10)
+// const SMTP_HOST = process.env.SMTP_HOST || 'smtp.gmail.com'
+// const SMTP_PORT = parseInt(process.env.SMTP_PORT || '587', 10)
+// const SMTP_RESOLVED_HOST = process.env.SMTP_RESOLVED_HOST || (await dns.promises.resolve4(SMTP_HOST))[0]
+// const SMTP_PORTS = Array.from(new Set(
+//   (process.env.SMTP_PORTS || `${SMTP_PORT},465,587`)
+//     .split(',')
+//     .map((port) => parseInt(port.trim(), 10))
+//     .filter(Boolean)
+// ))
 
-console.log(`SMTP host resolved: ${SMTP_HOST} -> ${SMTP_RESOLVED_HOST}`)
-console.log(`SMTP ports to try: ${SMTP_PORTS.join(', ')}`)
+// console.log(`SMTP host resolved: ${SMTP_HOST} -> ${SMTP_RESOLVED_HOST}`)
+// console.log(`SMTP ports to try: ${SMTP_PORTS.join(', ')}`)
 
 
 
-const createSmtpTransporter = (port) => {
-  const secure = port === 465 || process.env.SMTP_SECURE === 'true'
+// const createSmtpTransporter = (port) => {
+//   const secure = port === 465 || process.env.SMTP_SECURE === 'true'
 
-  return nodemailer.createTransport({
-    host: SMTP_RESOLVED_HOST,
-    port,
-    secure,
-    requireTLS: !secure,
-    connectionTimeout: SMTP_TIMEOUT_MS,
-    greetingTimeout: SMTP_TIMEOUT_MS,
-    socketTimeout: SMTP_TIMEOUT_MS,
-    auth: {
-      user: GMAIL_USER,
-      pass: GMAIL_APP_PASSWORD,
-    },
-    tls: {
-      rejectUnauthorized: false,
-      servername: SMTP_HOST,
-    },
-  })
-}
+//   return nodemailer.createTransport({
+//     host: SMTP_RESOLVED_HOST,
+//     port,
+//     secure,
+//     requireTLS: !secure,
+//     connectionTimeout: SMTP_TIMEOUT_MS,
+//     greetingTimeout: SMTP_TIMEOUT_MS,
+//     socketTimeout: SMTP_TIMEOUT_MS,
+//     auth: {
+//       user: GMAIL_USER,
+//       pass: GMAIL_APP_PASSWORD,
+//     },
+//     tls: {
+//       rejectUnauthorized: false,
+//       servername: SMTP_HOST,
+//     },
+//   })
+// }
 
-const smtpTransporters = SMTP_PORTS.map((port) => ({
-  port,
-  transporter: createSmtpTransporter(port),
-}))
+// const smtpTransporters = SMTP_PORTS.map((port) => ({
+//   port,
+//   transporter: createSmtpTransporter(port),
+// }))
 
-// Verify transporter connection
-smtpTransporters.forEach(({ port, transporter }) => {
-  transporter.verify((error) => {
-    if (error) {
-      console.warn(`Gmail SMTP port ${port} not ready: ${error.message}`)
-      appendLog('smtp-verify-error', { port, error: error && (error.stack || error.message || error) })
-    } else {
-      console.log(`Gmail configured successfully on SMTP port ${port}`)
-    }
-  })
+// // Verify transporter connection
+// smtpTransporters.forEach(({ port, transporter }) => {
+//   transporter.verify((error) => {
+//     if (error) {
+//       console.warn(`Gmail SMTP port ${port} not ready: ${error.message}`)
+//       appendLog('smtp-verify-error', { port, error: error && (error.stack || error.message || error) })
+//     } else {
+//       console.log(`Gmail configured successfully on SMTP port ${port}`)
+//     }
+//   })
+// })
+const GMAIL_USER = process.env.GMAIL_USER
+
+const oauth2Client = new google.auth.OAuth2(
+  process.env.GOOGLE_CLIENT_ID,
+  process.env.GOOGLE_CLIENT_SECRET
+)
+
+oauth2Client.setCredentials({
+  refresh_token: process.env.GOOGLE_REFRESH_TOKEN,
 })
-
 // Email sending endpoint
 app.post('/api/send-email', async (req, res) => {
   try {
@@ -296,52 +307,96 @@ app.post('/api/send-email', async (req, res) => {
     }
 
     // Send email
-      try {
-        let info = null
-        let lastSendError = null
+//       try {
+//         let info = null
+//         let lastSendError = null
 
-        for (const { port, transporter } of smtpTransporters) {
-          try {
-            console.log(`Sending email to ${recipientEmail} via SMTP port ${port} with ${SMTP_TIMEOUT_MS}ms timeout...`)
-            info = await transporter.sendMail(mailOptions)
-            console.log(`SMTP port ${port} accepted email for ${recipientEmail}`)
-            break
-          } catch (attemptError) {
-            lastSendError = attemptError
-            console.warn(`SMTP port ${port} failed: ${attemptError && (attemptError.message || attemptError)}`)
-            appendLog('email-port-error', { port, to: recipientEmail, error: attemptError && (attemptError.stack || attemptError.message || attemptError) })
-          }
-        }
+//         for (const { port, transporter } of smtpTransporters) {
+//           try {
+//             console.log(`Sending email to ${recipientEmail} via SMTP port ${port} with ${SMTP_TIMEOUT_MS}ms timeout...`)
+//             info = await transporter.sendMail(mailOptions)
+//             console.log(`SMTP port ${port} accepted email for ${recipientEmail}`)
+//             break
+//           } catch (attemptError) {
+//             lastSendError = attemptError
+//             console.warn(`SMTP port ${port} failed: ${attemptError && (attemptError.message || attemptError)}`)
+//             appendLog('email-port-error', { port, to: recipientEmail, error: attemptError && (attemptError.stack || attemptError.message || attemptError) })
+//           }
+//         }
 
-        if (!info) {
-          throw lastSendError || new Error('All SMTP ports failed')
-        }
+//         if (!info) {
+//           throw lastSendError || new Error('All SMTP ports failed')
+//         }
 
-        const msg = `Email sent to ${recipientEmail}: ${info.messageId}`
-        console.log(msg)
-        appendLog('email-success', { to: recipientEmail, messageId: info.messageId, info: info })
-        return res.status(200).json({
-          success: true,
-          message: `Email sent successfully to ${recipientEmail}`,
-          messageId: info.messageId,
-        })
-      } catch (sendErr) {
-        console.error('Email sending error:', sendErr && (sendErr.stack || sendErr.message || sendErr))
-        appendLog('email-error', { to: recipientEmail, error: sendErr && (sendErr.stack || sendErr.message || sendErr) })
-        return res.status(500).json({
-          success: false,
-          error: sendErr && (sendErr.message || String(sendErr)) || 'Failed to send email',
-        })
-      }
-  } catch (error) {
-    console.error('Email sending error:', error.message)
-    return res.status(500).json({
-      success: false,
-      error: error.message || 'Failed to send email',
-    })
-  }
-})
+//         const msg = `Email sent to ${recipientEmail}: ${info.messageId}`
+//         console.log(msg)
+//         appendLog('email-success', { to: recipientEmail, messageId: info.messageId, info: info })
+//         return res.status(200).json({
+//           success: true,
+//           message: `Email sent successfully to ${recipientEmail}`,
+//           messageId: info.messageId,
+//         })
+//       } catch (sendErr) {
+//         console.error('Email sending error:', sendErr && (sendErr.stack || sendErr.message || sendErr))
+//         appendLog('email-error', { to: recipientEmail, error: sendErr && (sendErr.stack || sendErr.message || sendErr) })
+//         return res.status(500).json({
+//           success: false,
+//           error: sendErr && (sendErr.message || String(sendErr)) || 'Failed to send email',
+//         })
+//       }
+//   } catch (error) {
+//     console.error('Email sending error:', error.message)
+//     return res.status(500).json({
+//       success: false,
+//       error: error.message || 'Failed to send email',
+//     })
+//   }
+// })
+try {
+  const gmail = google.gmail({
+    version: 'v1',
+    auth: oauth2Client,
+  })
 
+  const emailLines = [
+    `From: Droply <${GMAIL_USER}>`,
+    `To: ${recipientEmail}`,
+    `Subject: ${senderName || 'Someone'} shared "${fileName}" with you via Droply`,
+    'MIME-Version: 1.0',
+    'Content-Type: text/html; charset=UTF-8',
+    '',
+    mailOptions.html,
+  ]
+
+  const raw = Buffer.from(emailLines.join('\n'))
+    .toString('base64')
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
+    .replace(/=+$/, '')
+
+  const result = await gmail.users.messages.send({
+    userId: 'me',
+    requestBody: {
+      raw,
+    },
+  })
+
+  console.log(`Email sent to ${recipientEmail}: ${result.data.id}`)
+
+  return res.status(200).json({
+    success: true,
+    message: `Email sent successfully to ${recipientEmail}`,
+    messageId: result.data.id,
+  })
+} catch (sendErr) {
+      console.error('Email sending error:', sendErr)
+
+      return res.status(500).json({
+        success: false,
+        error: sendErr.message || 'Failed to send email',
+      })
+    }
+  })
 // SIMPLE Download proxy endpoint - takes any Firebase Storage URL and fetches it server-side
 app.post('/api/download', async (req, res) => {
   try {
