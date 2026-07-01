@@ -9,8 +9,26 @@ import dns from 'dns'
 import admin from 'firebase-admin'
 import { google } from 'googleapis'
 
-
 const app = express()
+
+const loadDotEnv = () => {
+  const dotenvPath = path.join(process.cwd(), '.env')
+  if (!fs.existsSync(dotenvPath)) return
+
+  const envText = fs.readFileSync(dotenvPath, 'utf8')
+  envText.split(/\r?\n/).forEach((line) => {
+    const trimmed = line.trim()
+    if (!trimmed || trimmed.startsWith('#')) return
+    const [key, ...rest] = trimmed.split('=')
+    if (!key) return
+    const value = rest.join('=').trim().replace(/^"|"$/g, '')
+    if (process.env[key] === undefined) {
+      process.env[key] = value
+    }
+  })
+}
+
+loadDotEnv()
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 const PORT = process.env.PORT || process.env.SERVER_PORT || 3001
@@ -348,8 +366,46 @@ app.post('/api/send-email', async (req, res) => {
 //     })
 //   }
 // })
-  // Try Google Gmail API via dynamic import first. If unavailable, attempt SMTP via nodemailer.
+  // Try SMTP first if app password is configured, otherwise fall back to Gmail API.
   try {
+    const smtpUser = process.env.GMAIL_USER
+    const smtpPass = process.env.GMAIL_APP_PASSWORD
+    const hasSmtp = !!(smtpUser && smtpPass)
+    const hasOAuth = !!(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET && process.env.GOOGLE_REFRESH_TOKEN)
+
+    if (hasSmtp) {
+      console.log('Email server using SMTP via GMAIL_APP_PASSWORD')
+      try {
+        const nodemailerPkg = await import('nodemailer')
+        const nodemailer = nodemailerPkg.default || nodemailerPkg
+        const transporter = nodemailer.createTransport({
+          host: process.env.SMTP_HOST || 'smtp.gmail.com',
+          port: parseInt(process.env.SMTP_PORT || '587', 10),
+          secure: process.env.SMTP_PORT === '465',
+          auth: {
+            user: smtpUser,
+            pass: smtpPass,
+          },
+          tls: { rejectUnauthorized: false },
+        })
+
+        const info = await transporter.sendMail(mailOptions)
+        appendLog('email-success-smtp', { to: recipientEmail, messageId: info.messageId })
+        return res.status(200).json({ success: true, message: `Email sent via SMTP to ${recipientEmail}`, messageId: info.messageId })
+      } catch (smtpErr) {
+        appendLog('email-smtp-failed', { error: String(smtpErr) })
+        console.error('Email SMTP send failed:', smtpErr)
+        if (!hasOAuth) {
+          return res.status(503).json({ success: false, error: 'SMTP email failed and no Gmail OAuth credentials were configured' })
+        }
+        console.warn('SMTP failed, falling back to Gmail API')
+      }
+    }
+
+    if (!hasOAuth) {
+      return res.status(500).json({ success: false, error: 'No valid email credentials configured: set GMAIL_APP_PASSWORD or Google OAuth credentials.' })
+    }
+
     let gmailApi = null
     try {
       const googlePkg = await import('googleapis')
@@ -362,11 +418,12 @@ app.post('/api/send-email', async (req, res) => {
       gmailApi = google.gmail({ version: 'v1', auth: oauth2Client })
     } catch (modErr) {
       appendLog('email-module-import-failed', { error: String(modErr) })
+      console.warn('Gmail API initialization failed')
     }
 
     if (gmailApi) {
       const emailLines = [
-        `From: Droply <${GMAIL_USER}>`,
+        `From: Droply <${smtpUser || GMAIL_USER}>`,
         `To: ${recipientEmail}`,
         `Subject: ${senderName || 'Someone'} shared "${fileName}" with you via Droply`,
         'MIME-Version: 1.0',
@@ -381,34 +438,20 @@ app.post('/api/send-email', async (req, res) => {
         .replace(/\//g, '_')
         .replace(/=+$/, '')
 
-      const result = await gmailApi.users.messages.send({ userId: 'me', requestBody: { raw } })
-      appendLog('email-success-gmail', { to: recipientEmail, messageId: result.data.id })
-      return res.status(200).json({ success: true, message: `Email sent successfully to ${recipientEmail}`, messageId: result.data.id })
+      try {
+        const result = await gmailApi.users.messages.send({ userId: 'me', requestBody: { raw } })
+        appendLog('email-success-gmail', { to: recipientEmail, messageId: result.data.id })
+        return res.status(200).json({ success: true, message: `Email sent successfully to ${recipientEmail}`, messageId: result.data.id })
+      } catch (gmailSendErr) {
+        appendLog('email-gmail-failed', { to: recipientEmail, error: String(gmailSendErr) })
+        console.error('Gmail API send failed:', gmailSendErr)
+        if (gmailSendErr && (gmailSendErr.code === 'invalid_grant' || String(gmailSendErr).includes('invalid_grant'))) {
+          console.warn('Gmail OAuth invalid_grant detected')
+        }
+      }
     }
 
-    // Fallback to nodemailer if Gmail API not available
-    try {
-      const nodemailerPkg = await import('nodemailer')
-      const nodemailer = nodemailerPkg.default || nodemailerPkg
-      const transporter = nodemailer.createTransport({
-        host: process.env.SMTP_HOST || 'smtp.gmail.com',
-        port: parseInt(process.env.SMTP_PORT || '587', 10),
-        secure: (process.env.SMTP_PORT === '465'),
-        auth: {
-          user: process.env.GMAIL_USER,
-          pass: process.env.GMAIL_APP_PASSWORD,
-        },
-        tls: { rejectUnauthorized: false },
-      })
-
-      const info = await transporter.sendMail(mailOptions)
-      appendLog('email-success-smtp', { to: recipientEmail, messageId: info.messageId })
-      return res.status(200).json({ success: true, message: `Email sent via SMTP to ${recipientEmail}`, messageId: info.messageId })
-    } catch (smtpErr) {
-      appendLog('email-smtp-failed', { error: String(smtpErr) })
-      console.error('Email SMTP fallback failed:', smtpErr)
-      return res.status(503).json({ success: false, error: 'Email service unavailable' })
-    }
+    return res.status(500).json({ success: false, error: 'Email service failed. Check SMTP credentials or Gmail OAuth refresh token.' })
   } catch (sendErr) {
     appendLog('email-error', { to: recipientEmail, error: String(sendErr) })
     console.error('Email sending error:', sendErr)
