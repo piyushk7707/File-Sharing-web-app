@@ -576,7 +576,7 @@ app.get('/api/file/:shareId', async (req, res) => {
       const docRef = db.collection('files').doc(shareId)
       const docSnapshot = await docRef.get()
       
-      if (docSnapshot.exists()) {
+      if (docSnapshot.exists) {
         const fileData = docSnapshot.data()
         console.log(`✅ Found file by document ID: ${fileData.fileName}`)
         return res.json({
