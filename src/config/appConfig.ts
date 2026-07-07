@@ -22,7 +22,7 @@ export const config = {
     apiBaseUrl: isLocal 
       ? 'http://localhost:3001' 
       : (env.VITE_API_BASE_URL || getOrigin() || 'http://localhost:3001'),
-    frontendUrl: getOrigin() || env.VITE_FRONTEND_BASE_URL || 'http://localhost:5174',
+    frontendUrl: getOrigin() || env.VITE_FRONTEND_BASE_URL || 'http://localhost:5174'||'https://file-sharing-i9kb.onrender.com/',
   },
 
   // Firebase Configuration
